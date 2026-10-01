@@ -5,10 +5,6 @@
 #include <Servo.h>
 
 
-Servo baseServo;
-
-unsigned long lastUpdateTime = 0;
-
 struct JointControl {
     int joystickPin;
     int servoPin;
@@ -21,36 +17,49 @@ struct JointControl {
     int directionSign;
 };
 
-JointControl base = {
-    .joystickPin = A0,
-    .servoPin = 9,
-    .center = 506,
-    .targetAngle = 90.0f,
-    .minAngle = 0.0f,
-    .maxAngle = 180.0f,
-    .directionSign = 1
+struct JoystickInput {
+    int raw;
+    int delta;
+    int speedLevel;
+    int direction;
+    float velocity;
 };
 
-float joystickVelocity(const JointControl& joint) {
-    int raw = analogRead(joint.joystickPin);
-    int delta = raw - joint.center;
+JoystickInput readJoystick(const JointControl& joint) {
+    JoystickInput input;
 
-    if (abs(delta) <= 5) return 0.0f;
+    input.raw = analogRead(joint.joystickPin);
+    input.delta = input.raw - joint.center;
 
-    float speed;
+    if (abs(input.delta) <= 10) {
+        input.speedLevel = 0;
+        input.direction = 0;
+        input.velocity = 0.0f;
+        return input;
+    }
 
-    if (abs(delta) < 500) speed = 90.0f;
-    else speed = 180.0f;
+    input.direction = input.delta > 0 ? -1 : 1;
 
-    int direction = delta > 0 ? -1 : 1;
+    if (abs(input.delta) < 500) {
+        input.speedLevel = 1;
+        input.velocity = 45.0f;
+    } else {
+        input.speedLevel = 2;
+        input.velocity = 90.0f;
+    }
 
-    return direction * joint.directionSign * speed;
+    input.velocity *= input.direction * joint.directionSign;
+
+    return input;
 }
 
-void updateJoint(JointControl& joint, Servo& servo, float dt) {
-    float velocity = joystickVelocity(joint);
-
-    joint.targetAngle += velocity * dt;
+void updateJoint(
+    JointControl& joint,
+    Servo& servo,
+    const JoystickInput& input,
+    float dt
+) {
+    joint.targetAngle += input.velocity * dt;
 
     joint.targetAngle = constrain(
         joint.targetAngle,
@@ -61,20 +70,111 @@ void updateJoint(JointControl& joint, Servo& servo, float dt) {
     servo.write(static_cast<int>(joint.targetAngle));
 }
 
+JointControl joints[4] = {
+    {
+        .joystickPin = A0,
+        .servoPin = 9,
+        .center = 506,
+        .targetAngle = 90.0f,
+        .minAngle = 0.0f,
+        .maxAngle = 180.0f,
+        .directionSign = 1
+    },
+    {
+        .joystickPin = A1,
+        .servoPin = 8,
+        .center = 519,
+        .targetAngle = 130.0f,
+        .minAngle = 0.0f,
+        .maxAngle = 180.0f,
+        .directionSign = -1
+    },
+    {
+        .joystickPin = A3,
+        .servoPin = 7,
+        .center = 519,
+        .targetAngle = 60.0f,
+        .minAngle = 0.0f,
+        .maxAngle = 180.0f,
+        .directionSign = 1
+    },
+    {
+        .joystickPin = A2,
+        .servoPin = 6,
+        .center = 515,
+        .targetAngle = 50.0f,
+        .minAngle = 0.0f,
+        .maxAngle = 180.0f,
+        .directionSign = 1
+    }
+};
+Servo servos[4];
+JoystickInput inputs[4];
+
+unsigned long lastControlTime = 0;
+unsigned long lastDebugTime = 0;
+
+const unsigned long CONTROL_INTERVAL = 20;
+const unsigned long DEBUG_INTERVAL = 400;
+
 void setup() {
     Serial.begin(115200);
-    Serial.println("ok");
+    Serial.println("alright");
 
-    baseServo.attach(base.servoPin);
-    baseServo.write(static_cast<int>(base.targetAngle));
-    lastUpdateTime = millis();
+    for (int i = 0; i < 4; ++i) {
+        servos[i].attach(joints[i].servoPin);
+        servos[i].write(static_cast<int>(joints[i].targetAngle));
+    }
+
+    lastControlTime = millis();
+    lastDebugTime = millis();
 }
 
 void loop() {
     unsigned long now = millis();
 
-    float dt = (now - lastUpdateTime) / 1000.0f;
-    lastUpdateTime = now;
+    if (now - lastControlTime >= CONTROL_INTERVAL) {
+        float dt = (now - lastControlTime) / 1000.0f;
+        lastControlTime = now;
 
-    updateJoint(base, baseServo, dt);
+        for (int i = 0; i < 4; ++i) {
+            inputs[i] = readJoystick(joints[i]);
+
+            updateJoint(
+                joints[i],
+                servos[i],
+                inputs[i],
+                dt
+            );
+        }
+    }
+
+    if (now - lastDebugTime >= DEBUG_INTERVAL) {
+        lastDebugTime = now;
+
+        Serial.print("t=");
+        Serial.print(now);
+
+        for (int i = 0; i < 4; ++i) {
+            Serial.print(" | J");
+            Serial.print(i);
+
+            Serial.print(" raw=");
+            Serial.print(inputs[i].raw);
+
+            Serial.print(" d=");
+            Serial.print(inputs[i].delta);
+
+            Serial.print(" lvl=");
+            Serial.print(inputs[i].speedLevel);
+
+            Serial.print(" v=");
+            Serial.print(inputs[i].velocity, 1);
+
+            Serial.print(" tgt=");
+            Serial.print(joints[i].targetAngle, 1);
+        }
+
+        Serial.println();
+    }
 }
