@@ -53,12 +53,47 @@ JoystickInput readJoystick(const JointControl& joint) {
     return input;
 }
 
+constexpr float J1_J2_MIN_SUM = 148.0f;
+
+void updateCoupledJoints(
+    JointControl& j1,
+    JointControl& j2,
+    Servo& s1,
+    Servo& s2,
+    const JoystickInput& in1,
+    const JoystickInput& in2,
+    float dt
+) {
+    float next1 = j1.targetAngle + in1.velocity * dt;
+    float next2 = j2.targetAngle + in2.velocity * dt;
+
+    next1 = constrain(next1, j1.minAngle, j1.maxAngle);
+    next2 = constrain(next2, j2.minAngle, j2.maxAngle);
+
+    float currentSum = j1.targetAngle + j2.targetAngle;
+    float nextSum = next1 + next2;
+
+    bool safe = nextSum >= J1_J2_MIN_SUM;
+    bool escaping = nextSum > currentSum;
+
+    if (safe || escaping) {
+        j1.targetAngle = next1;
+        j2.targetAngle = next2;
+    }
+
+    s1.write(static_cast<int>(j1.targetAngle));
+    s2.write(static_cast<int>(j2.targetAngle));
+}
+
 void updateJoint(
     JointControl& joint,
     Servo& servo,
     const JoystickInput& input,
     float dt
 ) {
+    if (joint.servoPin == 8 || joint.servoPin == 7) {
+
+    }
     joint.targetAngle += input.velocity * dt;
 
     joint.targetAngle = constrain(
@@ -84,9 +119,9 @@ JointControl joints[4] = {
         .joystickPin = A1,
         .servoPin = 8,
         .center = 519,
-        .targetAngle = 130.0f,
-        .minAngle = 0.0f,
-        .maxAngle = 180.0f,
+        .targetAngle = 120.0f,
+        .minAngle = 20.0f,
+        .maxAngle = 125.0f,
         .directionSign = -1
     },
     {
@@ -94,8 +129,8 @@ JointControl joints[4] = {
         .servoPin = 7,
         .center = 519,
         .targetAngle = 60.0f,
-        .minAngle = 0.0f,
-        .maxAngle = 180.0f,
+        .minAngle = 40.0f,
+        .maxAngle = 130.0f,
         .directionSign = 1
     },
     {
@@ -139,14 +174,18 @@ void loop() {
 
         for (int i = 0; i < 4; ++i) {
             inputs[i] = readJoystick(joints[i]);
-
-            updateJoint(
-                joints[i],
-                servos[i],
-                inputs[i],
-                dt
-            );
         }
+
+        updateJoint(joints[0], servos[0], inputs[0], dt);
+
+        updateCoupledJoints(
+            joints[1], joints[2],
+            servos[1], servos[2],
+            inputs[1], inputs[2],
+            dt
+        );
+
+        updateJoint(joints[3], servos[3], inputs[3], dt);
     }
 
     if (now - lastDebugTime >= DEBUG_INTERVAL) {
