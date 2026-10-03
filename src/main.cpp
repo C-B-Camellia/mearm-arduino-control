@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Servo.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -43,6 +44,12 @@ constexpr float J1_J2_MIN_SUM = 148.0f;
 
 constexpr float START_J1 = 120.0f;
 constexpr float START_J2 = 95.0f;
+
+// Forward kinematics working model (lengths in mm, angles in degrees).
+constexpr float L1 = 80.0f;
+constexpr float L2 = 80.0f;
+constexpr float RIGHT_ZERO = 184.0f;
+constexpr float ELBOW_OFFSET = 116.9f;
 
 // ============================================================
 // Runtime state
@@ -94,6 +101,36 @@ size_t serialIndex = 0;
 // ============================================================
 // Utilities
 // ============================================================
+
+float degToRad(float deg)
+{
+    return deg * PI / 180.0f;
+}
+
+// Diagnostic output for the requested servo angles; no motion control.
+void printKinematics(float uL, float uR)
+{
+    float alpha = RIGHT_ZERO - uR;
+    float gamma = uL + uR - ELBOW_OFFSET;
+    float beta = alpha - (180.0f - gamma);
+
+    float alphaRad = degToRad(alpha);
+    float betaRad = degToRad(beta);
+
+    float x = L1 * cos(alphaRad) + L2 * cos(betaRad);
+    float z = L1 * sin(alphaRad) + L2 * sin(betaRad);
+
+    Serial.print(F("alpha="));
+    Serial.print(alpha, 1);
+    Serial.print(F(" gamma="));
+    Serial.print(gamma, 1);
+    Serial.print(F(" beta="));
+    Serial.print(beta, 1);
+    Serial.print(F(" | FK x="));
+    Serial.print(x, 1);
+    Serial.print(F(" z="));
+    Serial.println(z, 1);
+}
 
 float moveToward(
     float current,
@@ -307,6 +344,7 @@ void requestPose(
     Serial.print(targetJ1, 1);
     Serial.print(' ');
     Serial.println(targetJ2, 1);
+    printKinematics(targetJ1, targetJ2);
 }
 
 void requestJ1(float target)
