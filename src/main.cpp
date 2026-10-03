@@ -31,7 +31,7 @@ JoystickInput readJoystick(const JointControl& joint) {
     input.raw = analogRead(joint.joystickPin);
     input.delta = input.raw - joint.center;
 
-    if (abs(input.delta) <= 10) {
+    if (abs(input.delta) <= 15) {
         input.speedLevel = 0;
         input.direction = 0;
         input.velocity = 0.0f;
@@ -42,10 +42,10 @@ JoystickInput readJoystick(const JointControl& joint) {
 
     if (abs(input.delta) < 500) {
         input.speedLevel = 1;
-        input.velocity = 45.0f;
+        input.velocity = 15.0f;
     } else {
         input.speedLevel = 2;
-        input.velocity = 90.0f;
+        input.velocity = 80.0f;
     }
 
     input.velocity *= input.direction * joint.directionSign;
@@ -128,7 +128,7 @@ JointControl joints[4] = {
         .joystickPin = A3,
         .servoPin = 7,
         .center = 519,
-        .targetAngle = 60.0f,
+        .targetAngle = 95.0f,
         .minAngle = 40.0f,
         .maxAngle = 130.0f,
         .directionSign = 1
