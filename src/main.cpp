@@ -45,7 +45,7 @@ constexpr float J1_J2_MIN_SUM = 148.0f;
 constexpr float START_J1 = 120.0f;
 constexpr float START_J2 = 95.0f;
 
-// Forward kinematics working model (lengths in mm, angles in degrees).
+// Shared kinematics working model (lengths in mm, angles in degrees).
 constexpr float L1 = 80.0f;
 constexpr float L2 = 80.0f;
 constexpr float RIGHT_ZERO = 184.0f;
@@ -175,6 +175,79 @@ bool isSafePose(
     return true;
 }
 
+struct IKResult {
+    bool valid;
+    float alpha;
+    float beta;
+    float gamma;
+    float j1;
+    float j2;
+};
+
+IKResult solveIK(float x, float z)
+{
+    IKResult result{};
+    if (!isfinite(x) || !isfinite(z)) {
+        return result;
+    }
+
+    float d = (x * x + z * z - L1 * L1 - L2 * L2)
+              / (2.0f * L1 * L2);
+
+    // Target outside geometric workspace.
+    if (!isfinite(d) || d < -1.0f || d > 1.0f) {
+        return result;
+    }
+
+    // Current physical branch.
+    float q = -acos(d);
+    float alpha = atan2(z, x)
+                  - atan2(L2 * sin(q), L1 + L2 * cos(q));
+    float beta = alpha + q;
+    float alphaDeg = alpha * 180.0f / PI;
+    float betaDeg = beta * 180.0f / PI;
+    float gammaDeg = 180.0f + q * 180.0f / PI;
+    float targetJ2 = RIGHT_ZERO - alphaDeg;
+    float targetJ1 = gammaDeg + ELBOW_OFFSET - targetJ2;
+
+    if (!isSafePose(targetJ1, targetJ2)) {
+        return result;
+    }
+
+    result.valid = true;
+    result.alpha = alphaDeg;
+    result.beta = betaDeg;
+    result.gamma = gammaDeg;
+    result.j1 = targetJ1;
+    result.j2 = targetJ2;
+    return result;
+}
+
+void printIKResult(const IKResult& result)
+{
+    Serial.print(F("IK J1="));
+    Serial.print(result.j1, 1);
+    Serial.print(F(" J2="));
+    Serial.print(result.j2, 1);
+    Serial.print(F(" | alpha="));
+    Serial.print(result.alpha, 1);
+    Serial.print(F(" gamma="));
+    Serial.print(result.gamma, 1);
+    Serial.print(F(" beta="));
+    Serial.println(result.beta, 1);
+}
+
+// Diagnostic only: never updates requested angles or motion state.
+void printIK(float x, float z)
+{
+    IKResult result = solveIK(x, z);
+    if (!result.valid) {
+        Serial.println(F("ERR IK: unreachable or unsafe target"));
+        return;
+    }
+    printIKResult(result);
+}
+
 // 如果意外处于危险侧，只允许往安全方向退出
 bool isSafeTransition(
     float currentJ1,
@@ -277,15 +350,16 @@ void printHelp()
     Serial.println(F("=== MeArm Calibration Controller ==="));
     Serial.println();
 
-    Serial.println(F("Direct pose input:"));
-    Serial.println(F("  <J1> <J2>"));
-    Serial.println(F("  Example: 95 68"));
+    Serial.println(F("IK input (mm, print only):"));
+    Serial.println(F("  <x> <z>"));
+    Serial.println(F("  Example: 41.1 47.3"));
 
     Serial.println();
 
     Serial.println(F("Other commands:"));
-    Serial.println(F("  J1 <angle>"));
-    Serial.println(F("  J2 <angle>"));
+    Serial.println(F("  XY <x> <z> (mm, moves arm via IK)"));
+    Serial.println(F("  J1 <angle> (moves servo)"));
+    Serial.println(F("  J2 <angle> (moves servo)"));
     Serial.println(F("  SPEED <deg/s>"));
     Serial.println(F("  HOLD"));
     Serial.println(F("  GO"));
@@ -380,7 +454,7 @@ void handleCommand(char* line)
 
     // ========================================================
     // 1. Direct numeric input:
-    //    95 68
+    //    x z in mm, IK output only
     // ========================================================
 
     {
@@ -405,13 +479,7 @@ void handleCommand(char* line)
             looksNumeric(arg1) &&
             looksNumeric(arg2)
         ) {
-            float targetJ1 = atof(arg1);
-            float targetJ2 = atof(arg2);
-
-            requestPose(
-                targetJ1,
-                targetJ2
-            );
+            printIK(atof(arg1), atof(arg2));
 
             return;
         }
@@ -424,6 +492,30 @@ void handleCommand(char* line)
     char* command = strtok(line, " ");
 
     if (command == nullptr) {
+        return;
+    }
+
+    // XY uses the existing safe, speed-limited joint motion controller.
+    if (strcmp(command, "XY") == 0) {
+        char* argX = strtok(nullptr, " ");
+        char* argZ = strtok(nullptr, " ");
+        char* extra = strtok(nullptr, " ");
+        if (
+            argX == nullptr || argZ == nullptr || extra != nullptr ||
+            !looksNumeric(argX) || !looksNumeric(argZ)
+        ) {
+            Serial.println(F("ERR usage: XY <x> <z>"));
+            return;
+        }
+
+        IKResult ik = solveIK(atof(argX), atof(argZ));
+        if (!ik.valid) {
+            Serial.println(F("ERR IK: unreachable or unsafe target"));
+            return;
+        }
+
+        printIKResult(ik);
+        requestPose(ik.j1, ik.j2);
         return;
     }
 
@@ -668,68 +760,32 @@ void handleSerial()
 // Motion controller
 // ============================================================
 
-void updateCalibrationPose(float dt)
+void updateCalibrationPose()
 {
     if (holdMotion) {
         return;
     }
 
-    float maxStep =
-        moveSpeed * dt;
-
-    // 先计算整个 candidate pose
-    float nextJ1 = moveToward(
-        j1.currentAngle,
-        j1.requestedAngle,
-        maxStep
-    );
-
-    float nextJ2 = moveToward(
-        j2.currentAngle,
-        j2.requestedAngle,
-        maxStep
-    );
-
-    // 整组安全检查
-    if (
-        !isSafeTransition(
-            j1.currentAngle,
-            j2.currentAngle,
-            nextJ1,
-            nextJ2
-        )
-    ) {
-        Serial.println(
-            F("ERR transition blocked")
-        );
-
-        holdMotion = true;
-
-        j1.requestedAngle =
-            j1.currentAngle;
-
-        j2.requestedAngle =
-            j2.currentAngle;
-
+    if (!isSafePose(
+            j1.requestedAngle,
+            j2.requestedAngle
+        )) {
+        Serial.println(F("ERR unsafe pose"));
         return;
-    }
+        }
 
-    // Commit
-    j1.currentAngle = nextJ1;
-    j2.currentAngle = nextJ2;
+    j1.currentAngle = j1.requestedAngle;
+    j2.currentAngle = j2.requestedAngle;
 
-    // Servo 输出
     servoJ1.write(
-        static_cast<int>(
-            j1.currentAngle
-        )
+        static_cast<int>(j1.currentAngle)
     );
 
     servoJ2.write(
-        static_cast<int>(
-            j2.currentAngle
-        )
+        static_cast<int>(j2.currentAngle)
     );
+
+    holdMotion = true;
 }
 
 // ============================================================
@@ -777,12 +833,14 @@ void setup()
     );
 
     Serial.println(
-        F("Input: <J1> <J2>")
+        F("Input: <x> <z> in mm (IK print only)")
     );
 
     Serial.println(
-        F("Example: 95 68")
+        F("Example: 41.1 47.3")
     );
+
+    Serial.println(F("Move via IK: XY <x> <z> (mm)"));
 
     Serial.println(
         F("Type HELP for commands.")
@@ -814,6 +872,6 @@ void loop()
             static_cast<float>(elapsed)
             / 1000.0f;
 
-        updateCalibrationPose(dt);
+        updateCalibrationPose();
     }
 }
