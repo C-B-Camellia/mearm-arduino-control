@@ -8,8 +8,8 @@ constexpr uint8_t SERIAL_BYTES_PER_LOOP = 64;
 constexpr uint32_t CONTROL_INTERVAL_MS = 20;
 constexpr uint32_t STARTUP_DELAY_MS = 500;
 
-constexpr float LINE_STEP_MM = 5.0f;
-constexpr uint32_t WAYPOINT_DELAY_MS = 1000;
+constexpr float LINE_STEP_MM = 4.0f;
+constexpr uint32_t WAYPOINT_DELAY_MS = 10;
 
 // Configuration only until speed-controlled motion is implemented.
 constexpr float DEFAULT_MOVE_SPEED = 60.0f;
