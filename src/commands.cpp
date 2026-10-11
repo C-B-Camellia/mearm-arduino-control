@@ -3,6 +3,7 @@
 #include "config.h"
 #include "kinematics.h"
 #include "motion.h"
+#include "manual_control.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -11,7 +12,7 @@
 namespace {
 enum class CommandType : uint8_t {
     PrintIK, MovePlanar, MoveJoint, SetSpeed,
-    Hold, Go, Cancel, Status, Help, PreviewLine, RunLine
+    Hold, Go, Cancel, Status, Help, PreviewLine, RunLine, SetMode
 };
 
 struct Command {
@@ -19,6 +20,7 @@ struct Command {
     float first;
     float second;
     JointId joint;
+    ControlMode mode;
 };
 
 char serialBuffer[SERIAL_BUFFER_SIZE];
@@ -126,6 +128,23 @@ bool parseCommand(char* line, Command& command)
         command.type = CommandType::Help;
         usage = F("ERR usage: HELP");
     }
+    else if (strcmp(tokens[0], "MODE") == 0) {
+        command.type = CommandType::SetMode;
+        if (count != 2) {
+            Serial.println(F("ERR invalid mode"));
+            return false;
+        }
+        if (strcmp(tokens[1], "JOINT") == 0) {
+            command.mode = ControlMode::Joint;
+            return true;
+        }
+        if (strcmp(tokens[1], "CART") == 0){
+            command.mode = ControlMode::Cartesian;
+            return true;
+        }
+        Serial.println(F("ERR invalid mode"));
+        return false;
+    }
     else {
         Serial.print(F("ERR unknown command: "));
         Serial.println(tokens[0]);
@@ -229,6 +248,13 @@ void printStatus()
     Serial.print(motion.completedWaypoints);
     Serial.print('/');
     Serial.println(motion.totalWaypoints);
+    Serial.print(F(" | mode="));
+
+    if (getControlMode() == ControlMode::Joint) {
+        Serial.print(F("JOINT"));
+    } else {
+        Serial.print(F("CART"));
+    }
 }
 
 void printHelp()
@@ -323,6 +349,14 @@ void executeCommand(const Command& command)
             startLine({command.first, command.second},
                       command.type == CommandType::PreviewLine ? TaskKind::LinePreview : TaskKind::LineExecution);
             break;
+        case CommandType::SetMode: {
+            if (setControlMode(command.mode)) {
+                if (command.mode == ControlMode::Joint) Serial.println(F("OK MODE JOINT"));
+                else Serial.println(F("OK MODE CART"));
+            }
+            else Serial.println(F("ERR busy"));
+            break;
+        }
     }
 }
 }
