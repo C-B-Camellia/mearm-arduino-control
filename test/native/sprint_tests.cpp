@@ -646,6 +646,35 @@ void testFailureAndLatency() {
     float value; CHECK(parseNumber("-.25",value) && value==-0.25f);
     CHECK(!parseNumber("1e2",value)); CHECK(!parseNumber("--1",value));
 }
+void testFrozenTaskSpeeds() {
+    // Draw timing is invariant under global SPEED and joystick H/L.
+    uint32_t duration[3];
+    for(uint8_t variant=0;variant<3;++variant) {
+        prepareTeachFive(); send(variant==0?"SPEED 5":"SPEED 90");
+        if(variant) send("H");
+        send(variant==2?"FEED 20":"FEED 10");
+        CHECK(drawingFeed()==(variant==2?20:10));
+        send("DRAW POLY");
+        while(motionStatus().state==MotionState::Validating) advance();
+        uint32_t start=simulatedTime;
+        send("FEED 30"); CHECK(contains("BUSY") && drawingFeed()==(variant==2?20:10));
+        finishTask(); duration[variant]=simulatedTime-start;
+    }
+    CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
+    fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==10);
+    send("FEED 40.01"); CHECK(contains("INVALID") && drawingFeed()==10);
+    send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
+    send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
+    // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.
+    for(uint8_t variant=0;variant<2;++variant) {
+        fresh(); hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+        hardwareConfig.home.angles[Shoulder]=100;
+        CHECK(setAutomaticSpeed(variant?90:5)); adjustManualSpeedScale(variant);
+        CHECK(startHome()); while(motionStatus().state==MotionState::Validating) advance();
+        uint32_t start=simulatedTime; finishTask(); duration[variant]=simulatedTime-start;
+    }
+    CHECK(duration[0]==duration[1]);
+}
 void testDecimalDiagnostics() {
     fresh();
     for(uint8_t digits=0;digits<=2;++digits) {
@@ -665,6 +694,6 @@ int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testNanoInputAndLink(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
-    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
+    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

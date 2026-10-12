@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <avr/interrupt.h>
 static_assert(F_CPU==16000000UL && MEARM_BUTTON_RX==2,"RX requires Uno D2/INT0 at 16 MHz");
+static_assert(MEARM_BUTTON_BAUD==9600,"sampled UART supports 9600 baud only");
 // Timer0 remains millis, Timer1 remains Servo. Timer2 only samples RX.
 // No delay loop inside an ISR and no whole-byte interrupt blackout.
 namespace {

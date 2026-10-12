@@ -1,3 +1,4 @@
+#include "serial_format.h"
 #include "pick_place.h"
 #include "hardware_config.h"
 #include "motion.h"
@@ -95,7 +96,7 @@ void updatePickPersistence() {
 #ifdef __AVR__
     if(!eeprom_is_ready()) return;
 #endif
-    if(writeStep==9+PAYLOAD_BYTES) { activeSlot=writeSlot; saving=false; Serial.println(F("PICK SAVED; HELD")); return; }
+    if(writeStep==9+PAYLOAD_BYTES) { activeSlot=writeSlot; saving=false; printLine(F("PICK SAVED; HELD")); return; }
     uint16_t base=writeSlot*SLOT_BYTES;
     uint8_t value;
     uint16_t at;
@@ -137,11 +138,11 @@ __attribute__((noinline)) bool executePickCommand(char* const* t,uint8_t count) 
     if(count<3 || t[2][1]!=0 || t[2][0]<'A' || t[2][0]>'C') return rejectControl(ControlError::Invalid);
     uint8_t object=t[2][0]-'A';
     if(count==3 && op==1) {
-        Serial.print(F("PICK ")); Serial.print(t[2]); Serial.print(F(" mask=")); Serial.println(pickStageMask(object));
+        printText(F("PICK ")); Serial.print(t[2]); printText(F(" mask=")); printlnUnsigned(pickStageMask(object));
         for(uint8_t stage=0;stage<8;++stage) if(pickStageMask(object)&(1<<stage)) {
-            Serial.print(stage+1);
-            for(uint8_t i=0;i<6;++i) { Serial.print(' '); uint16_t v=readByte(address(object,stage)+i); Serial.print(i==5?v*10:v); }
-            Serial.println();
+            printUnsigned(stage+1);
+            for(uint8_t i=0;i<6;++i) { printChar(' '); uint16_t v=readByte(address(object,stage)+i); printUnsigned(i==5?v*10:v); }
+            printNewline();
         }
         return true;
     }

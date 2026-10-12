@@ -4,5 +4,7 @@ float manualSpeedScale();
 bool setManualSpeedScale(float scale);
 void adjustManualSpeedScale(bool faster);
 float automaticSpeed();
+float drawingFeed();
+bool setDrawingFeed(float mmPerSecond);
 bool setAutomaticSpeed(float speed);
 void resetControlSettings();

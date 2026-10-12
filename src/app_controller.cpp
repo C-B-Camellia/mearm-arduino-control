@@ -142,7 +142,7 @@ bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
     case 9:
         if(count!=1) break;
         for(uint8_t i=0;i<teachPointCount();++i) {
-            TeachPoint point; getTeachPoint(i,point); Serial.print(i+1); Serial.print(' '); printDecimal(point.x); Serial.print(' '); printDecimal(point.y); Serial.println();
+            TeachPoint point; getTeachPoint(i,point); printUnsigned(i+1); printChar(' '); printDecimal(point.x); printChar(' '); printDecimal(point.y); printNewline();
         }
         success=true; return true;
     case 10:
@@ -170,7 +170,8 @@ dispatch:
     success=dispatchAction(action); return true;
 }
 void printApplicationStatus() {
-    Serial.print(F("workflow=")); Serial.println(static_cast<int>(currentWorkflow()));
+    printText(F("pickNext=")); printChar('A'+nextObject); printNewline();
+    printText(F("workflow=")); printlnUnsigned(static_cast<int>(currentWorkflow()));
     printRecordingStatus();
-    Serial.print(F("points=")); Serial.print(teachPointCount()); Serial.print(F(" paper=")); Serial.println(drawSettingsValid());
+    printText(F("points=")); printUnsigned(teachPointCount()); printText(F(" paper=")); printlnUnsigned(drawSettingsValid());
 }

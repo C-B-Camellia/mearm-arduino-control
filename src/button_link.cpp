@@ -1,3 +1,4 @@
+#include "serial_format.h"
 #include "button_link.h"
 #include "button_protocol.h"
 #include "pin_uart.h"
@@ -34,7 +35,7 @@ void feedButtonByte(char c,uint32_t now) {
     if(frame[4]==lastSequence) return; // Duplicate delivery, no repeated action.
     if(frame[4]!=static_cast<uint8_t>(lastSequence+1)) { synchronized=false; return; }
     lastSequence=frame[4];
-    if(onButtonPressed(frame[5])) Serial.println(F("OK BTN")); else printControlError();
+    if(onButtonPressed(frame[5])) printLine(F("OK BTN")); else printControlError();
 }
 void pollButtonLink() {
 #ifdef MEARM_BUTTON_RX

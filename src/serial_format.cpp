@@ -18,3 +18,10 @@ void printDecimal(float value,uint8_t digits) {
         Serial.print(static_cast<char>('0'+fraction%10));
     }
 }
+
+__attribute__((noinline)) void printText(const __FlashStringHelper* p) { Serial.print(p); }
+__attribute__((noinline)) void printLine(const __FlashStringHelper* p) { Serial.println(p); }
+__attribute__((noinline)) void printChar(char c) { Serial.print(c); }
+__attribute__((noinline)) void printNewline() { Serial.println(); }
+__attribute__((noinline)) void printUnsigned(uint16_t n) { Serial.print(n); }
+__attribute__((noinline)) void printlnUnsigned(uint16_t n) { Serial.println(n); }
