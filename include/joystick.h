@@ -23,3 +23,4 @@ struct JoystickInput {
 };
 
 JoystickInput readJoysticks();
+bool joysticksCentered(const JoystickInput& input);

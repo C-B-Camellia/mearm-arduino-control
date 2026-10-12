@@ -4,6 +4,8 @@
 #include "commands.h"
 #include "config.h"
 #include "motion.h"
+#include "manual_control.h"
+#include "control_error.h"
 
 namespace {
 uint32_t lastControlTime = 0;
@@ -17,6 +19,7 @@ void setup()
     // Hobby servos do not report actual position. Start from a safe physical pose.
     delay(STARTUP_DELAY_MS);
     lastControlTime = millis();
+    initializeManualControl(lastControlTime);
 
     Serial.println();
     Serial.println(F("MeArm calibration controller ready."));
@@ -34,12 +37,13 @@ void loop()
     uint32_t now = millis();
     bool controlDue = static_cast<uint32_t>(now - lastControlTime) >= CONTROL_INTERVAL_MS;
     if (controlDue) {
-        lastControlTime = now;
-        if (!isMotionBusy() && !applyPendingPose()) {
-            Serial.println(F("ERR unsafe pose"));
-        }
+        lastControlTime += ((now-lastControlTime)/CONTROL_INTERVAL_MS)*CONTROL_INTERVAL_MS;
     }
-    updateMotion(millis(), controlDue);
+    updateMotion(now, controlDue);
+    if(controlDue) {
+        if(!isMotionBusy()) updateManualControl(now);
+        if(!applyPendingPose()) { rejectControl(ControlError::Unsafe); cancelMotion(); printControlError(); }
+    }
 
     // Future recording hook: sample the commanded pose after motion updates.
 }

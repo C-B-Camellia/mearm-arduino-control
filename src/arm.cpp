@@ -1,4 +1,5 @@
 #include "arm.h"
+#include "hardware_config.h"
 
 #include <math.h>
 
@@ -11,9 +12,8 @@ JointControl joints[JointCount] = {
     {A3, 7, 519,  95.0f,  95.0f, 40.0f, 130.0f,  1, true},  // Elbow / J2
     {A2, 6, 515,  50.0f,  50.0f,  0.0f, 180.0f,  1, false}  // Gripper
 };
-Servo servos[JointCount];
-
 namespace {
+Servo servos[JointCount];
 bool held = false;
 bool posePending = true;
 
@@ -40,6 +40,7 @@ bool canApplyPose(const Pose& pose)
 
 void initializeArm()
 {
+    configureCalibratedJoints();
     Pose output;
     if (!prepareOutputPose(commandedPose(), output)) {
         held = true;
@@ -105,7 +106,7 @@ bool requestPose(const Pose& pose)
     return true;
 }
 
-bool applyPoseImmediate(const Pose& pose)
+static bool applyPoseImmediate(const Pose& pose)
 {
     Pose output;
     if (!prepareOutputPose(pose, output)) {

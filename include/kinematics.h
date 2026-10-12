@@ -7,8 +7,8 @@ struct Point2D {
 
 struct Point3D {
     float x;
-    float z;
     float y;
+    float z;
 };
 
 struct FKResult {

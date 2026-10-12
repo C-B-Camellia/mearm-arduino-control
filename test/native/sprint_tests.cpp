@@ -6,6 +6,9 @@
 #include "kinematics.h"
 #include "manual_control.h"
 #include "motion.h"
+#include "hardware_config.h"
+#include "control_settings.h"
+#include "control_error.h"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -37,9 +40,10 @@ void send(const std::string& s) {
 void fresh() {
     Serial.input="\n"; pollSerial(); cancelMotion();
     for (uint8_t i=0;i<JointCount;++i) joints[i]=original[i];
+    hardwareConfig=HardwareConfig{}; resetControlSettings();
     analogValues[0]=506; analogValues[1]=519; analogValues[2]=515; analogValues[3]=519;
     simulatedTime=0; servoWrites.clear(); attachedPins.clear(); delayCalls.clear();
-    Serial.input.clear(); Serial.output.clear(); setup(); advance();
+    Serial.input.clear(); Serial.output.clear(); setup(); advance(); advance();
     CHECK(attachedPins.size()==2 && attachedPins[0]==8 && attachedPins[1]==7);
     CHECK(delayCalls.size()==1 && delayCalls[0]==STARTUP_DELAY_MS);
     servoWrites.clear(); Serial.output.clear();
@@ -61,10 +65,10 @@ void testSafety() {
     candidate.angles[Shoulder]=20.9f; candidate.angles[Elbow]=127.1f;
     CHECK(isSafePose(candidate));
     CHECK(!prepareOutputPose(candidate,output)); CHECK(!requestPose(candidate));
-    CHECK(!applyPoseImmediate(candidate)); CHECK(servoWrites.empty() && !hasPendingPose());
+    CHECK(servoWrites.empty() && !hasPendingPose());
     CHECK(commandedPose().angles[Shoulder]==before.angles[Shoulder]);
     candidate.angles[Shoulder]=20; candidate.angles[Elbow]=128;
-    CHECK(prepareOutputPose(candidate,output)); CHECK(applyPoseImmediate(candidate)); checkWritesSafe();
+    CHECK(prepareOutputPose(candidate,output)); CHECK(requestPose(candidate)); CHECK(applyPendingPose()); checkWritesSafe();
     candidate=commandedPose(); candidate.angles[Base]=91; CHECK(!requestPose(candidate));
     candidate=commandedPose(); candidate.angles[Shoulder]=std::numeric_limits<float>::quiet_NaN();
     CHECK(!requestPose(candidate));
@@ -105,7 +109,8 @@ void testParser() {
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
 }
 void testHoldAndJoystick() {
-    fresh(); CHECK(!isArmHeld()); CHECK(setControlMode(ControlMode::Cartesian));
+    fresh(); CHECK(!isArmHeld()); CHECK(!setControlMode(ControlMode::Cartesian));
+    CHECK(lastControlError()==ControlError::Uncalibrated);
     CHECK(setControlMode(ControlMode::Joint));
     send("HOLD"); CHECK(isArmHeld()); CHECK(!requestPose(commandedPose()));
     send("GO"); CHECK(!isArmHeld() && !hasPendingPose());
@@ -118,9 +123,52 @@ void testHoldAndJoystick() {
     analogValues[0]=0; CHECK(readJoysticks().lx==-2);
     analogValues[0]=1023; CHECK(readJoysticks().lx==2);
 }
+void syntheticCalibration() {
+    // Test-only values. They are never compiled into hardware_config.cpp.
+    hardwareConfig.base={true,10,170,90}; hardwareConfig.gripper={true,20,100,50};
+    hardwareConfig.cartesian={true,ToolModel::FixedPlanar,1,90,5,30,3,2,4};
+    configureCalibratedJoints();
+}
+void test3DAndManual() {
+    fresh(); CHECK(!solveIK3D({50,0,50}).valid); CHECK(!isfinite(solveFK3D(90,120,95).x));
+    syntheticCalibration();
+    for(ToolModel model:{ToolModel::FixedPlanar,ToolModel::DistalLink}) {
+        hardwareConfig.cartesian.toolModel=model;
+        for(int j0=30;j0<=150;j0+=20) for(int j1=70;j1<=120;j1+=10) for(int j2=90;j2<=120;j2+=10) {
+            Point3D point=solveFK3D(j0,j1,j2); IKResult3D ik=solveIK3D(point);
+            CHECK(ik.valid); CHECK(fabs(ik.j0-j0)<0.001f); CHECK(fabs(ik.j1-j1)<0.001f); CHECK(fabs(ik.j2-j2)<0.001f);
+        }
+    }
+    CHECK(!solveIK3D({0,0,50}).valid); CHECK(!solveIK3D({1000,1000,1000}).valid);
+    CHECK(setControlMode(ControlMode::Cartesian)); CHECK(servoWrites.empty());
+    CHECK(setControlMode(ControlMode::Joint));
+    fresh(); analogValues[1]=700; runFor(500);
+    CHECK(joints[Shoulder].commandedAngle>=99 && joints[Shoulder].commandedAngle<=100);
+    CHECK(automaticSpeed()==60 && manualSpeedScale()==1);
+    send("H"); CHECK(manualSpeedScale()==1.25f && automaticSpeed()==60);
+    send("H"); send("H"); CHECK(manualSpeedScale()==1.5f);
+    for(int i=0;i<10;++i) send("L");
+    CHECK(manualSpeedScale()==0.75f);
+    checkWritesSafe();
+    fresh(); send("J1 110"); finishTask(); CHECK(joints[Shoulder].commandedAngle==110);
+    CHECK(!isArmHeld()); checkWritesSafe();
+    fresh(); send("O"); CHECK(contains("UNCALIBRATED") && servoWrites.empty());
+    send("x90,y120,z95"); CHECK(contains("DISABLED") && servoWrites.empty());
+    send("x90,y120,x95"); CHECK(contains("INVALID") && servoWrites.empty());
+}
+void testIndependentSpeedAndClock() {
+    fresh(); send("SPEED 30"); uint32_t start=simulatedTime; send("J1 100"); finishTask(); uint32_t slow=simulatedTime-start;
+    fresh(); send("SPEED 60"); start=simulatedTime; send("J1 100"); send("H"); send("H"); finishTask(); uint32_t fast=simulatedTime-start;
+    CHECK(slow>fast && automaticSpeed()==60 && manualSpeedScale()==1.5f);
+    fresh(); simulatedTime=UINT32_MAX-40; loop(); send("J1 100");
+    while(motionStatus().state==MotionState::Validating) loop();
+    advance(20); send("HOLD"); size_t count=servoWrites.size();
+    advance(1000); CHECK(servoWrites.size()==count); send("GO"); finishTask();
+    CHECK(commandedPose().angles[Shoulder]==100); checkWritesSafe();
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
-    testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick();
+    testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     std::cout << "PASS: " << assertions << " checks\n";
 }

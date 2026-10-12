@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "joystick.h"
 
 enum class ControlMode : uint8_t {
     Joint,
@@ -16,3 +17,6 @@ ControlMode getControlMode();
 bool setControlMode(ControlMode newMode);
 
 void updateManualControl(uint32_t now);
+void updateManualControl(uint32_t now,const JoystickInput& input);
+void syncManualTarget(uint32_t now);
+void initializeManualControl(uint32_t now);

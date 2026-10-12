@@ -33,7 +33,6 @@ struct Pose {
 constexpr float J1_J2_MIN_SUM = 148.0f;
 
 extern JointControl joints[JointCount];
-extern Servo servos[JointCount];
 
 void initializeArm();
 Pose commandedPose();
@@ -44,7 +43,6 @@ bool prepareOutputPose(const Pose& candidate, Pose& output);
 
 // Queue ordinary motion, or send a validated trajectory waypoint immediately.
 bool requestPose(const Pose& pose);
-bool applyPoseImmediate(const Pose& pose);
 bool applyPendingPose();
 bool hasPendingPose();
 bool isArmHeld();

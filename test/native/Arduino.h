@@ -13,6 +13,7 @@
 using std::isfinite;
 using std::min;
 using std::max;
+template<class T> inline T constrain(T value,T low,T high) { return min(max(value,low),high); }
 
 #define PI 3.1415926535897932384626433832795
 #define A0 14

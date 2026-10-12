@@ -2,11 +2,21 @@
 
 #include <Arduino.h>
 #include "kinematics.h"
+#include "arm.h"
 
 enum class TaskKind : uint8_t {
     None,
     LinePreview,
-    LineExecution
+    LineExecution,
+    JointMove,
+    CartesianMove,
+    Home,
+    PickPlace,
+    Playback,
+    DrawLine,
+    DrawShape,
+    Polyline,
+    Curve
 };
 
 enum class MotionState : uint8_t {
@@ -27,6 +37,8 @@ struct MotionStatus {
 bool isMotionBusy();
 MotionStatus motionStatus();
 bool startLine(Point2D target, TaskKind kind);
+bool startJointMove(const Pose& target);
+bool startCartesianMove(const Point3D& target);
 void updateMotion(uint32_t now, bool controlDue);
 bool pauseMotion(uint32_t now);
 bool resumeMotion(uint32_t now);

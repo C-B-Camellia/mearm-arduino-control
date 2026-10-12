@@ -41,3 +41,4 @@ JoystickInput readJoysticks() {
         joysticks[static_cast<uint8_t>(JoystickAxis::RY)]);
     return input;
 }
+bool joysticksCentered(const JoystickInput& input) { return input.lx==0 && input.ly==0 && input.rx==0 && input.ry==0; }
