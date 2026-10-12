@@ -1,0 +1,50 @@
+# Copy this file to your C++ project root and run doxygen Doxyfile.
+PROJECT_NAME = "MeArm Arduino Control"
+OUTPUT_DIRECTORY = code-map
+INPUT = src include lib docs/overview.md
+RECURSIVE = YES
+FILE_PATTERNS = *.cpp *.cc *.cxx *.c *.h *.hpp *.hxx *.ipp *.tpp
+EXCLUDE_PATTERNS = */code-map/* */cmake-build-*/* */build/* */.git/* */.idea/*
+EXTRACT_ALL = YES
+EXTRACT_PRIVATE = YES
+EXTRACT_STATIC = YES
+SOURCE_BROWSER = YES
+INLINE_SOURCES = YES
+REFERENCES_RELATION = YES
+REFERENCED_BY_RELATION = YES
+REFERENCES_LINK_SOURCE = YES
+GENERATE_HTML = YES
+GENERATE_TREEVIEW = YES
+GENERATE_LATEX = NO
+GENERATE_XML = YES
+HAVE_DOT = YES
+DOT_PATH = "C:/Program Files/Graphviz/bin"
+DOT_IMAGE_FORMAT = svg
+INTERACTIVE_SVG = YES
+CALL_GRAPH = YES
+CALLER_GRAPH = YES
+CLASS_GRAPH = YES
+COLLABORATION_GRAPH = YES
+INCLUDE_GRAPH = YES
+INCLUDED_BY_GRAPH = YES
+DOT_GRAPH_MAX_NODES = 60
+MAX_DOT_GRAPH_DEPTH = 3
+WARN_IF_UNDOCUMENTED = NO
+
+EXTRACT_ANON_NSPACES = YES
+FULL_PATH_NAMES = NO
+GENERATE_HTML = YES
+
+
+# Chinese interface and local Doxygen Awesome v2.5.0 theme.
+OUTPUT_LANGUAGE = Chinese
+PROJECT_NAME = "MeArm 代码地图"
+PROJECT_BRIEF = "模块 · 函数调用 · 共享状态"
+HTML_EXTRA_STYLESHEET = docs/theme/doxygen-awesome.css docs/theme/custom.css
+HTML_COLORSTYLE = LIGHT
+FULL_SIDEBAR = NO
+DISABLE_INDEX = NO
+USE_MDFILE_AS_MAINPAGE = docs/overview.md
+HTML_COPY_CLIPBOARD = YES
+
+HTML_EXTRA_FILES = docs/theme/LICENSE

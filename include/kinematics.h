@@ -5,6 +5,12 @@ struct Point2D {
     float z;
 };
 
+struct Point3D {
+    float x;
+    float z;
+    float y;
+};
+
 struct FKResult {
     float alpha;
     float beta;
@@ -21,8 +27,18 @@ struct IKResult {
     float j2;
 };
 
+struct IKResult3D {
+    bool valid;
+    float j0;
+    float j1;
+    float j2;
+};
+
 FKResult solveFK(float shoulderAngle, float elbowAngle);
 IKResult solveIK(float x, float z);
 
 // Future base rotation and pencil offsets belong in a separately calibrated
 // coordinate conversion. This module currently models the original x/z plane.
+Point3D solveFK3D(float j0, float j1, float j2);
+
+IKResult3D solveIK3D(const Point3D& target);

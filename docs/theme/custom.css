@@ -1,0 +1,18 @@
+html {
+  --primary-color: #2563eb;
+  --primary-dark-color: #1d4ed8;
+  --primary-light-color: #60a5fa;
+  --font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --font-family-monospace: Consolas, "Cascadia Code", monospace;
+  --page-font-size: 15px;
+  --border-radius-small: 6px;
+  --border-radius-large: 12px;
+  --side-nav-fixed-width: 290px;
+}
+.map-intro { color: var(--page-secondary-foreground-color); font-size: 1.1rem; line-height: 1.8; }
+.map-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
+.map-card { display: block; padding: 20px; border: 1px solid var(--separator-color); border-radius: 12px; background: var(--page-background-color); transition: border-color .15s, transform .15s; }
+a.map-card:hover { border-color: var(--primary-color); transform: translateY(-2px); text-decoration: none; }
+.map-card strong { display: block; font-size: 17px; margin-bottom: 8px; }
+.map-card span { display: block; color: var(--page-secondary-foreground-color); line-height: 1.7; }
+.map-note { padding: 16px 20px; border-left: 3px solid var(--primary-color); background: var(--code-background); border-radius: 0 8px 8px 0; margin: 20px 0; line-height: 1.8; }

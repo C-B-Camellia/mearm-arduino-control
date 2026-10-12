@@ -1,6 +1,7 @@
 #include "manual_control.h"
 #include "arm.h"
 #include "motion.h"
+#include "config.h"
 
 namespace {
 
@@ -20,3 +21,6 @@ bool setControlMode(ControlMode newMode) {
     return false;
 }
 
+void updateManualControl(uint32_t now) {
+    
+}
