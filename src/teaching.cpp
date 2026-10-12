@@ -1,3 +1,87 @@
-//
-// Created by 12530 on 2026/10/11.
-//
+#include "teaching.h"
+#include "arm.h"
+#include "hardware_config.h"
+#include "manual_control.h"
+#include "motion.h"
+#include "recording.h"
+#include "control_error.h"
+#include <math.h>
+namespace {
+TeachPoint points[TEACH_POINT_COUNT];
+uint8_t order[TEACH_POINT_COUNT]={0,1,2,3,4},count=0;
+TeachSettings settings{};
+bool active=false,marking=false;
+bool mutableNow() {
+    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
+    return true;
+}
+Point3D currentPoint() {
+    Pose p=commandedPose(); return solveFK3D(p.angles[Base],p.angles[Shoulder],p.angles[Elbow]);
+}
+}
+bool teachingActive() { return active; }
+bool markingActive() { return active && marking; }
+uint8_t teachPointCount() { return count; }
+const TeachSettings& teachSettings() { return settings; }
+bool drawSettingsValid() {
+    return cartesianCalibrationValid() && settings.drawValid && settings.travelValid &&
+        isfinite(settings.drawZ) && isfinite(settings.travelZ) && settings.travelZ>settings.drawZ;
+}
+void initializeTeaching() { active=marking=false; settings=TeachSettings{}; count=0; for(uint8_t i=0;i<5;++i) order[i]=i; }
+bool beginTeach() {
+    if(!mutableNow()) return false;
+    if(!cartesianCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
+    if(!setControlMode(ControlMode::Cartesian)) return false;
+    active=true; marking=false; syncManualTarget(millis()); return true;
+}
+bool captureTeachHeight(bool drawing) {
+    if(!mutableNow()) return false;
+    if(!active || marking) return rejectControl(ControlError::Invalid);
+    Point3D p=currentPoint(); if(!isfinite(p.z)) return rejectControl(ControlError::Uncalibrated);
+    if(drawing) { settings.drawZ=p.z; settings.drawValid=true; }
+    else { settings.travelZ=p.z; settings.travelValid=true; }
+    return true;
+}
+bool beginMarking() {
+    if(!mutableNow()) return false;
+    if(!active || !drawSettingsValid()) return rejectControl(ControlError::Uncalibrated);
+    Point3D p=currentPoint();
+    // Do not silently move vertically when entering marking. Capture travelZ at
+    // this pose, then enter with the joystick centered.
+    if(fabsf(p.z-settings.travelZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
+    marking=true; syncManualTarget(millis()); return true;
+}
+bool markTeachPoint() {
+    if(!mutableNow()) return false;
+    if(!markingActive()) return rejectControl(ControlError::Invalid);
+    if(count==TEACH_POINT_COUNT) return rejectControl(ControlError::Full);
+    Point3D p=currentPoint(); if(!isfinite(p.x) || !isfinite(p.y)) return rejectControl(ControlError::Uncalibrated);
+    for(uint8_t i=0;i<count;++i) {
+        float dx=p.x-points[i].x,dy=p.y-points[i].y;
+        if(dx*dx+dy*dy<0.01f) return rejectControl(ControlError::Invalid);
+    }
+    points[count]={p.x,p.y}; order[count]=count; ++count; return true;
+}
+bool clearTeachPoints() {
+    if(!mutableNow()) return false;
+    count=0; marking=false; for(uint8_t i=0;i<5;++i) order[i]=i; return true;
+}
+bool exitTeach() {
+    if(!mutableNow()) return false;
+    active=marking=false; syncManualTarget(millis()); return true;
+}
+bool setTeachOrder(const uint8_t (&sequence)[TEACH_POINT_COUNT]) {
+    if(!mutableNow()) return false;
+    if(count!=TEACH_POINT_COUNT) return rejectControl(ControlError::NoData);
+    uint8_t seen=0;
+    for(uint8_t i=0;i<5;++i) {
+        if(sequence[i]<1 || sequence[i]>5 || (seen&(1<<(sequence[i]-1)))) return rejectControl(ControlError::Invalid);
+        seen|=1<<(sequence[i]-1);
+    }
+    for(uint8_t i=0;i<5;++i) order[i]=sequence[i]-1;
+    return true;
+}
+bool getTeachPoint(uint8_t index,TeachPoint& out) {
+    if(index>=count) return false;
+    out=points[order[index]]; return true;
+}

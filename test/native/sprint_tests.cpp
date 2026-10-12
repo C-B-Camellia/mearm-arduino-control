@@ -13,6 +13,8 @@
 #include "pick_place.h"
 #include "app_controller.h"
 #include "button_link.h"
+#include "teaching.h"
+#include "path_planner.h"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -213,10 +215,75 @@ void testHomeAndPick() {
     CHECK(commandedPose().angles[Shoulder]==115);
     CHECK(cancelAndReturnHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
 }
+void testCurveSampler() {
+    TeachPoint points[5]={{0,0},{3,4},{9,1},{14,6},{20,0}};
+    for(uint8_t segment=0;segment<4;++segment) {
+        TeachPoint a=segment==0?TeachPoint{2*points[0].x-points[1].x,2*points[0].y-points[1].y}:points[segment-1];
+        TeachPoint d=segment==3?TeachPoint{2*points[4].x-points[3].x,2*points[4].y-points[3].y}:points[segment+2];
+        TeachPoint out;
+        CHECK(centripetalSample(a,points[segment],points[segment+1],d,0,out));
+        CHECK(pointDistance(out,points[segment])<0.0001f);
+        CHECK(centripetalSample(a,points[segment],points[segment+1],d,1,out));
+        CHECK(pointDistance(out,points[segment+1])<0.0001f);
+        for(int i=0;i<=100;++i) { CHECK(centripetalSample(a,points[segment],points[segment+1],d,i/100.0f,out)); CHECK(isfinite(out.x) && isfinite(out.y)); }
+    }
+    TeachPoint out; CHECK(!centripetalSample(points[0],points[0],points[1],points[2],0.5f,out));
+    CHECK(!centripetalSample(points[0],points[1],points[2],points[3],-0.1f,out));
+    for(ShapeId shape:{ShapeId::N,ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
+        for(uint8_t i=0;i<shapeVertexCount(shape);++i) { CHECK(shapeVertex(shape,i,{0,0},{10,10},out)); CHECK(out.x>=0 && out.x<=10 && out.y>=0 && out.y<=10); }
+    }
+}
+void prepareTeachFive() {
+    fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+    send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
+    Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
+    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(markingActive());
+    for(uint8_t i=0;i<5;++i) {
+        p=commandedPose(); p.angles[Base]=80+5*i;
+        CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
+    }
+    servoWrites.clear(); Serial.output.clear();
+}
+void testTeachAndDraw() {
+    fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
+    prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
+    send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
+    send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
+    Point3D expected=solveFK3D(100,123,95); CHECK(fabs(ordered.x-expected.x)<0.001f);
+    send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
+    send("MARK"); CHECK(contains("BUSY")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+    size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());
+    send("BTN 2"); finishTask(); CHECK(commandedPose().angles[Base]==hardwareConfig.home.angles[Base]);
+    CHECK(commandedPose().angles[Shoulder]==hardwareConfig.home.angles[Shoulder]);
+    CHECK(!isArmHeld() && servoWrites.size()%4==0);
+    for(uint8_t point=0;point<5;++point) {
+        TeachPoint target; getTeachPoint(point,target); float closest=10000;
+        for(size_t i=0;i+3<servoWrites.size();i+=4) {
+            CHECK(isSafePlanarPose(servoWrites[i+1].angle,servoWrites[i+2].angle));
+            Point3D actual=solveFK3D(servoWrites[i].angle,servoWrites[i+1].angle,servoWrites[i+2].angle);
+            if(fabs(actual.z-teachSettings().drawZ)<2) closest=min(closest,pointDistance({actual.x,actual.y},target));
+        }
+        CHECK(closest<3); // Integer Servo angles, not a measured paper tolerance.
+    }
+    send("DRAW CURVE"); CHECK(drawingTaskActive()); finishTask(); CHECK(!isArmHeld());
+    send("DRAW POLY"); CHECK(drawingTaskActive());
+    for(int i=0;i<1000 && motionStatus().state==MotionState::Validating;++i) loop();
+    CHECK(motionStatus().state==MotionState::Running); runFor(200); send("BTN 1"); send("BTN 3");
+    CHECK(isMotionBusy() && motionStatus().kind==TaskKind::Home); finishTask();
+    CHECK(commandedPose().angles[Shoulder]==hardwareConfig.home.angles[Shoulder]);
+    send("CLEAR"); CHECK(teachPointCount()==0 && currentWorkflow()==Workflow::TeachSetup);
+    send("TEACH EXIT"); CHECK(!teachingActive());
+    CHECK(startDrawLine({86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
+    for(ShapeId shape:{ShapeId::N,ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
+        CHECK(startBasicShape(shape,{86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
+    }
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testHomeAndPick();
+    testCurveSampler(); testTeachAndDraw();
     std::cout << "PASS: " << assertions << " checks\n";
 }

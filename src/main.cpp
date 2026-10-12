@@ -26,10 +26,7 @@ void setup()
     initializeManualControl(lastControlTime);
 
     Serial.println();
-    Serial.println(F("MeArm calibration controller ready."));
-    Serial.println(F("Input: IK <x> <z> or <x> <z> in mm (print only)"));
-    Serial.println(F("Move: XY <x> <z>; trajectory: RUNLINE <x> <z>"));
-    Serial.println(F("Task control: HOLD / GO / CANCEL; HELP for commands."));
+    Serial.println(F("MeArm assessment candidate; HELP"));
 }
 
 void loop()

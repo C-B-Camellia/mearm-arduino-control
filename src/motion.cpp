@@ -19,9 +19,91 @@ struct MotionTask {
     uint16_t validationSubstep,validationSubsteps;
     uint16_t dwellRemaining;
     uint8_t objectIndex;
+    ShapeId shape;
+    bool recoveryLift;
     bool segmentLoaded,endpointQueued;
 };
 MotionTask task{};
+bool isDrawingKind(TaskKind kind) {
+    return kind==TaskKind::DrawLine || kind==TaskKind::DrawShape || kind==TaskKind::Polyline || kind==TaskKind::Curve;
+}
+uint8_t drawCount() {
+    if(task.status.kind==TaskKind::DrawLine) return 2;
+    if(task.status.kind==TaskKind::DrawShape) return shapeVertexCount(task.shape);
+    return TEACH_POINT_COUNT;
+}
+bool drawVertex(uint8_t index,TeachPoint& p) {
+    if(task.status.kind==TaskKind::DrawLine) {
+        if(index>1) return false;
+        p=index==0?TeachPoint{task.cartStart.x,task.cartStart.y}:TeachPoint{task.cartEnd.x,task.cartEnd.y}; return true;
+    }
+    if(task.status.kind==TaskKind::DrawShape)
+        return shapeVertex(task.shape,index,{task.cartStart.x,task.cartStart.y},{task.cartEnd.x,task.cartEnd.y},p);
+    return getTeachPoint(index,p);
+}
+bool curveKnots(uint8_t segment,TeachPoint& a,TeachPoint& b,TeachPoint& c,TeachPoint& d) {
+    if(!drawVertex(segment,b) || !drawVertex(segment+1,c)) return false;
+    if(segment==0) a={2*b.x-c.x,2*b.y-c.y}; else if(!drawVertex(segment-1,a)) return false;
+    if(segment+2==drawCount()) d={2*c.x-b.x,2*c.y-b.y}; else if(!drawVertex(segment+2,d)) return false;
+    return true;
+}
+uint16_t strokeSteps(uint8_t segment) {
+    TeachPoint a,b,c,d;
+    float length;
+    if(task.status.kind==TaskKind::Curve) {
+        if(!curveKnots(segment,a,b,c,d)) return 0;
+        length=2*(pointDistance(a,b)+pointDistance(b,c)+pointDistance(c,d));
+    } else {
+        if(!drawVertex(segment,a) || !drawVertex(segment+1,b)) return 0;
+        length=pointDistance(a,b);
+    }
+    float steps=ceilf(length/0.75f);
+    if(!isfinite(steps) || length<0.1f || steps>4096) return 0;
+    return max(1,static_cast<int>(steps));
+}
+bool pointPose(const Point3D& point,Pose& pose) {
+    IKResult3D ik=solveIK3D(point);
+    if(!ik.valid) return rejectControl(ControlError::Unreachable);
+    pose.angles[Base]=ik.j0; pose.angles[Shoulder]=ik.j1; pose.angles[Elbow]=ik.j2; return true;
+}
+bool drawGoal(uint16_t index,Pose& pose) {
+    uint8_t homeCount=hardwareConfig.homeViaCount+1;
+    if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
+    index-=homeCount;
+    TeachPoint point;
+    if(index==1) {
+        Point3D home=solveFK3D(hardwareConfig.home.angles[Base],hardwareConfig.home.angles[Shoulder],hardwareConfig.home.angles[Elbow]);
+        home.z=teachSettings().travelZ; return pointPose(home,pose);
+    }
+    if(index<=3) {
+        if(!drawVertex(0,point)) return rejectControl(ControlError::Invalid);
+        return pointPose({point.x,point.y,index==3?teachSettings().drawZ:teachSettings().travelZ},pose);
+    }
+    index-=3;
+    for(uint8_t segment=0;segment<drawCount()-1;++segment) {
+        uint16_t steps=strokeSteps(segment);
+        if(!steps) return rejectControl(ControlError::Invalid);
+        if(index<=steps) {
+            float t=static_cast<float>(index)/steps;
+            TeachPoint a,b,c,d;
+            if(task.status.kind==TaskKind::Curve) {
+                if(!curveKnots(segment,a,b,c,d) || !centripetalSample(a,b,c,d,t,point)) return rejectControl(ControlError::Invalid);
+            } else {
+                if(!drawVertex(segment,a) || !drawVertex(segment+1,b)) return rejectControl(ControlError::Invalid);
+                point={a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t};
+            }
+            return pointPose({point.x,point.y,teachSettings().drawZ},pose);
+        }
+        index-=steps;
+    }
+    if(index==1) {
+        if(!drawVertex(drawCount()-1,point)) return rejectControl(ControlError::Invalid);
+        return pointPose({point.x,point.y,teachSettings().travelZ},pose);
+    }
+    --index;
+    if(index>homeCount) return rejectControl(ControlError::Invalid);
+    pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
+}
 float maxDifference(const Pose& a,const Pose& b) {
     float d=0; for(uint8_t i=0;i<JointCount;++i) d=max(d,fabsf(a.angles[i]-b.angles[i])); return d;
 }
@@ -33,6 +115,7 @@ bool sampleGoal(uint16_t index,Pose& pose) {
     float t=static_cast<float>(index)/task.status.totalWaypoints;
     if(task.status.kind==TaskKind::JointMove) { pose=task.target; return true; }
     if(task.status.kind==TaskKind::Home) {
+        if(task.recoveryLift) { if(index==1) { pose=task.target; return true; } --index; }
         pose=index<=hardwareConfig.homeViaCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
     }
     if(task.status.kind==TaskKind::PickPlace) {
@@ -43,6 +126,7 @@ bool sampleGoal(uint16_t index,Pose& pose) {
         for(uint8_t i=0;i<JointCount;++i) pose.angles[i]=frame.angles[i];
         return true;
     }
+    if(isDrawingKind(task.status.kind)) return drawGoal(index,pose);
     Point3D p={task.cartStart.x+(task.cartEnd.x-task.cartStart.x)*t,
                task.cartStart.y+(task.cartEnd.y-task.cartStart.y)*t,
                task.cartStart.z+(task.cartEnd.z-task.cartStart.z)*t};
@@ -103,6 +187,13 @@ void execute(uint32_t now) {
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
         task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/automaticSpeed())));
+        if(isDrawingKind(task.status.kind)) {
+            Point3D a=solveFK3D(task.segmentStart.angles[Base],task.segmentStart.angles[Shoulder],task.segmentStart.angles[Elbow]);
+            Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
+            float dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
+            float feed=10.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
+            task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
+        }
         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) {
             RecordedFrame a,b;
             getRecordedFrame(task.status.completedWaypoints-1,a); getRecordedFrame(task.status.completedWaypoints,b);
@@ -190,9 +281,47 @@ bool startPlayback() {
     return begin(TaskKind::Playback,recordingStatus().count);
 }
 bool cancelAndReturnHome() {
+    bool lift=drawingTaskActive();
+    Pose lifted=commandedPose();
+    if(lift) {
+        Point3D point=solveFK3D(lifted.angles[Base],lifted.angles[Shoulder],lifted.angles[Elbow]);
+        point.z=teachSettings().travelZ;
+        if(!drawSettingsValid() || !pointPose(point,lifted)) { cancelMotion(); return rejectControl(ControlError::Unreachable); }
+    }
     cancelMotion();
     if(!homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     resumeArm();
     if(!startHome()) { holdArm(); return false; }
+    if(lift) { task.recoveryLift=true; task.target=lifted; ++task.status.totalWaypoints; }
     return true;
+}
+bool drawingTaskActive() { return isMotionBusy() && isDrawingKind(task.status.kind); }
+namespace {
+bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoint& b) {
+    if(!drawSettingsValid() || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
+    // The configured HOME/via route must keep the pencil clamped.
+    float grip=joints[Gripper].commandedAngle;
+    if(hardwareConfig.home.angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
+    for(uint8_t i=0;i<hardwareConfig.homeViaCount;++i) if(hardwareConfig.homeVia[i].angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
+    if(!begin(kind,1)) return false;
+    task.shape=shape; task.cartStart={a.x,a.y,0}; task.cartEnd={b.x,b.y,0};
+    uint32_t count=2*(hardwareConfig.homeViaCount+1)+4;
+    for(uint8_t i=0;i<drawCount()-1;++i) {
+        uint16_t n=strokeSteps(i);
+        if(!n) { task.status.state=MotionState::Idle; return rejectControl(ControlError::Invalid); }
+        count+=n;
+    }
+    if(count>32767) { task.status.state=MotionState::Idle; return rejectControl(ControlError::Full); }
+    task.status.totalWaypoints=count; return true;
+}
+}
+bool startDrawLine(const TeachPoint& a,const TeachPoint& b) { return startDrawing(TaskKind::DrawLine,ShapeId::N,a,b); }
+bool startBasicShape(ShapeId shape,const TeachPoint& lo,const TeachPoint& hi) { return startDrawing(TaskKind::DrawShape,shape,lo,hi); }
+bool startPolyline() {
+    if(teachPointCount()!=TEACH_POINT_COUNT) return rejectControl(ControlError::NoData);
+    return startDrawing(TaskKind::Polyline,ShapeId::N,{},{});
+}
+bool startCurve() {
+    if(teachPointCount()!=TEACH_POINT_COUNT) return rejectControl(ControlError::NoData);
+    return startDrawing(TaskKind::Curve,ShapeId::N,{},{});
 }

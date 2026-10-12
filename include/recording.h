@@ -1,6 +1,6 @@
 #pragma once
 #include "arm.h"
-constexpr uint8_t RECORD_CAPACITY=96;
+constexpr uint8_t RECORD_CAPACITY=80;
 constexpr uint16_t RECORD_INTERVAL_MS=150;
 struct RecordedFrame { uint8_t angles[JointCount]; uint16_t timeMs; };
 enum class RecordState : uint8_t { Empty, Recording, Ready };

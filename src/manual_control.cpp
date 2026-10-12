@@ -8,6 +8,7 @@
 #include "control_settings.h"
 #include "control_error.h"
 #include "recording.h"
+#include "teaching.h"
 #include <math.h>
 
 namespace {
@@ -29,6 +30,7 @@ ControlMode getControlMode() {
 bool setControlMode(ControlMode newMode) {
     if(newMode!=ControlMode::Joint && newMode!=ControlMode::Cartesian) return rejectControl(ControlError::Invalid);
     if(newMode==currentMode) return true;
+    if(teachingActive()) return rejectControl(ControlError::Busy);
     if(isMotionBusy() || isRecording() || hasPendingPose() || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
     if(newMode==ControlMode::Cartesian && !cartesianCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
@@ -63,10 +65,11 @@ void updateManualControl(uint32_t now,const JoystickInput& in) {
         Point3D point=cartTarget;
         if(in.lx) point.x+=axisVelocity(in.lx,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
         if(in.ly) point.y+=axisVelocity(in.ly,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
-        if(in.ry) point.z+=axisVelocity(in.ry,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
+        if(markingActive()) point.z=teachSettings().travelZ;
+        else if(in.ry) point.z+=axisVelocity(in.ry,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;
         candidate.angles[Base]=ik.j0; candidate.angles[Shoulder]=ik.j1; candidate.angles[Elbow]=ik.j2;
-        if(in.rx && joints[Gripper].outputEnabled)
+        if(!markingActive() && in.rx && joints[Gripper].outputEnabled)
             candidate.angles[Gripper]=constrain(candidate.angles[Gripper]+axisVelocity(in.rx,MANUAL_JOINT_SLOW,MANUAL_JOINT_FAST)*dt,joints[Gripper].minAngle,joints[Gripper].maxAngle);
         Pose output; if(!prepareOutputPose(candidate,output)) return;
         cartTarget=point;

@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "kinematics.h"
 #include "arm.h"
+#include "path_planner.h"
 
 enum class TaskKind : uint8_t {
     None,
@@ -43,6 +44,11 @@ bool startHome();
 bool startPickPlace(uint8_t object);
 bool startPlayback();
 bool cancelAndReturnHome();
+bool startDrawLine(const TeachPoint& from,const TeachPoint& to);
+bool startBasicShape(ShapeId shape,const TeachPoint& low,const TeachPoint& high);
+bool startPolyline();
+bool startCurve();
+bool drawingTaskActive();
 void updateMotion(uint32_t now, bool controlDue);
 bool pauseMotion(uint32_t now);
 bool resumeMotion(uint32_t now);

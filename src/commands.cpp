@@ -1,4 +1,5 @@
 #include "commands.h"
+#include "command_text.h"
 #include "arm.h"
 #include "config.h"
 #include "kinematics.h"
@@ -9,6 +10,7 @@
 #include "control_error.h"
 #include "app_controller.h"
 #include "recording.h"
+#include "teaching.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,14 +19,21 @@ bool parseNumber(const char* text,float& value) {
     if(!text || !*text) return false;
     const char* p=text; if(*p=='+' || *p=='-') ++p;
     bool digit=false,dot=false;
+    float number=0,fraction=0.1f;
+    bool negative=*text=='-';
     while(*p) {
-        if(*p>='0' && *p<='9') digit=true;
+        if(*p>='0' && *p<='9') {
+            digit=true;
+            if(dot) { number+=(*p-'0')*fraction; fraction*=0.1f; }
+            else number=number*10.0f+(*p-'0');
+            if(!isfinite(number)) return false;
+        }
         else if(*p=='.' && !dot) dot=true;
         else return false;
         ++p;
     }
     if(!digit) return false;
-    value=atof(text); return isfinite(value);
+    value=negative?-number:number; return true;
 }
 namespace {
 char serialBuffer[SERIAL_BUFFER_SIZE];
@@ -38,21 +47,24 @@ void printIK(const IKResult& ik) {
 }
 void printStatus() {
     Pose p=commandedPose(); MotionStatus s=motionStatus();
-    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { Serial.print(p.angles[i],0); Serial.print(' '); }
+    uint8_t enabled=0;
+    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { Serial.print(p.angles[i],0); Serial.print(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
     Serial.print(F("autoSpeed=")); Serial.print(automaticSpeed(),1);
     Serial.print(F(" manualScale=")); Serial.print(manualSpeedScale(),2);
     Serial.print(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
     Serial.print(F(" task=")); Serial.print(static_cast<int>(s.kind)); Serial.print(F(" phase=")); Serial.print(static_cast<int>(s.state));
     Serial.print(F(" move=")); Serial.print(s.completedWaypoints); Serial.print('/'); Serial.print(s.totalWaypoints);
     Serial.print(F(" held=")); Serial.print(isArmHeld()); Serial.print(F(" cal=")); Serial.println(cartesianCalibrationValid());
+    Serial.print(F("enabled=")); Serial.print(enabled); Serial.print(F(" error=")); Serial.println(static_cast<int>(lastControlError()));
     printApplicationStatus();
 }
 void printHelp() {
     Serial.println(F("IK/XY/LINE/RUNLINE x z; J0..J3 deg; XYZ/IK3 x y z"));
-    Serial.println(F("x90,y120,z95 = J0,J1,J2 angles (atomic)"));
-    Serial.println(F("MODE JOINT|CART; O/S; H/L joystick scale 0.75..1.5"));
-    Serial.println(F("SPEED 5..90 automatic deg/s; HOLD/GO/CANCEL; STATUS/HELP"));
+    Serial.println(F("x90,y120,z95; MODE JOINT|CART; O/S; H/L manual"));
+    Serial.println(F("SPEED 5..90 auto; HOLD/GO/CANCEL; STATUS/HELP"));
     Serial.println(F("A/B/C; REC [START|STOP]; PLAY; HOME; BTN 1..4"));
+    Serial.println(F("TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK/LIST/CLEAR; ORDER 1 2 3 4 5"));
+    Serial.println(F("DRAW POLY/CURVE/LINE x1 y1 x2 y2/SHAPE N|TRIANGLE|Z|V [bounds]"));
 }
 bool angleTriple(char* line) {
     Pose pose=commandedPose(); uint8_t seen=0; char* save=nullptr;
@@ -83,19 +95,20 @@ void executeLine(char* line) {
     float v[3]={}; bool numbers=count>=2 && count<=4;
     for(uint8_t i=1;i<count && i<=3;++i) if(!parseNumber(tokens[i],v[i-1])) numbers=false;
     const char* c=tokens[0];
+    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0"));
     float shortcut;
     if(count==2 && parseNumber(c,shortcut) && numbers) { printIK(solveIK(shortcut,v[0])); return; }
-    if(count==3 && numbers && (!strcmp(c,"IK") || !strcmp(c,"XY") || !strcmp(c,"LINE") || !strcmp(c,"RUNLINE"))) {
-        if(!strcmp(c,"IK")) printIK(solveIK(v[0],v[1]));
-        else if(!strcmp(c,"XY")) {
+    if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
+        if(op==0) printIK(solveIK(v[0],v[1]));
+        else if(op==1) {
             IKResult ik=solveIK(v[0],v[1]); if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); return; }
             Pose p=commandedPose(); p.angles[Shoulder]=ik.j1; p.angles[Elbow]=ik.j2; result(startJointMove(p));
-        } else result(startLine({v[0],v[1]},!strcmp(c,"LINE")?TaskKind::LinePreview:TaskKind::LineExecution));
+        } else result(startLine({v[0],v[1]},op==2?TaskKind::LinePreview:TaskKind::LineExecution));
         return;
     }
-    if(count==4 && numbers && (!strcmp(c,"XYZ") || !strcmp(c,"IK3"))) {
+    if(count==4 && numbers && (op==4 || op==5)) {
         Point3D p={v[0],v[1],v[2]};
-        if(!strcmp(c,"XYZ")) result(startCartesianMove(p));
+        if(op==4) result(startCartesianMove(p));
         else {
             if(!cartesianCalibrationValid()) { rejectControl(ControlError::Uncalibrated); printControlError(); return; }
             IKResult3D ik=solveIK3D(p);
@@ -109,29 +122,33 @@ void executeLine(char* line) {
         if(!joints[id].outputEnabled) { rejectControl(ControlError::Disabled); printControlError(); return; }
         Pose p=commandedPose(); p.angles[id]=v[0]; result(startJointMove(p)); return;
     }
-    if(count==2 && !strcmp(c,"MODE")) {
-        if(!strcmp(tokens[1],"JOINT")) result(setControlMode(ControlMode::Joint));
-        else if(!strcmp(tokens[1],"CART")) result(setControlMode(ControlMode::Cartesian));
+    if(count==2 && op==6) {
+        if(commandIs(tokens[1],"JOINT")) result(setControlMode(ControlMode::Joint));
+        else if(commandIs(tokens[1],"CART")) result(setControlMode(ControlMode::Cartesian));
         else invalid();
         return;
     }
-    if(count==2 && numbers && !strcmp(c,"SPEED")) {
+    if(count==2 && numbers && op==7) {
         if(isMotionBusy()) result(rejectControl(ControlError::Busy));
         else if(setAutomaticSpeed(v[0])) result(true);
         else invalid();
         return;
     }
     if(count!=1) { invalid(); return; }
-    if(!strcmp(c,"H") || !strcmp(c,"L")) { adjustManualSpeedScale(!strcmp(c,"H")); result(true); }
-    else if(!strcmp(c,"O") || !strcmp(c,"S")) {
+    if(op==8 || op==9) { adjustManualSpeedScale(op==8); result(true); }
+    else if(op==10 || op==11) {
         if(!gripperCalibrationValid()) result(rejectControl(ControlError::Uncalibrated));
-        else { Pose p=commandedPose(); p.angles[Gripper]=!strcmp(c,"O")?hardwareConfig.gripOpen:hardwareConfig.gripClosed; result(startJointMove(p)); }
+        else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:hardwareConfig.gripClosed; result(startJointMove(p)); }
     }
-    else if(!strcmp(c,"HOLD")) { if(!pauseMotion(millis())) holdArm(); result(true); }
-    else if(!strcmp(c,"GO")) { if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
-    else if(!strcmp(c,"CANCEL")) { if(isRecording()) clearRecording(); cancelMotion(); result(true); }
-    else if(!strcmp(c,"STATUS")) printStatus();
-    else if(!strcmp(c,"HELP")) printHelp();
+    else if(op==12) { if(!pauseMotion(millis())) holdArm(); result(true); }
+    else if(op==13) { if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
+    else if(op==14) {
+        if(isRecording()) clearRecording();
+        if(drawingTaskActive()) result(cancelAndReturnHome());
+        else { cancelMotion(); result(true); }
+    }
+    else if(op==15) printStatus();
+    else if(op==16) printHelp();
     else invalid();
 }
 }
@@ -147,6 +164,6 @@ void pollSerial() {
         if((c>=32 && c<=126) || c=='\t') {
             if(serialIndex<SERIAL_BUFFER_SIZE-1) serialBuffer[serialIndex++]=c;
             else { discardLine=true; Serial.println(F("ERR command too long")); }
-        }
+        } else { discardLine=true; invalid(); }
     }
 }
