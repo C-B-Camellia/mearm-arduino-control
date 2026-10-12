@@ -1,3 +1,5 @@
+#include "button_protocol.h"
+#include "../../nano/include/button_scan.h"
 #include "Arduino.h"
 #include "arm.h"
 #include "commands.h"
@@ -223,10 +225,17 @@ void testRecordingAndButtons() {
     send("GO"); finishTask(); CHECK(commandedPose().angles[Shoulder]==last.angles[Shoulder]); checkWritesSafe();
     fresh(); recordMovingSession(20000); CHECK(hasRecording() && !isRecording());
     CHECK(recordingStatus().duration==RECORD_MAX_MS && contains("REC MAX"));
-    fresh(); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('9',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(contains("INVALID")); CHECK(!buttonLinkConfigured());
+    fresh(); uint8_t frame[ButtonWire::Size];
+    ButtonWire::encode(frame,ButtonWire::Hello,4,0,0);
+    for(uint8_t byte:frame) feedButtonByte(static_cast<char>(byte),simulatedTime);
+    ButtonWire::encode(frame,ButtonWire::Press,4,1,2);
+    for(uint8_t byte:frame) feedButtonByte(static_cast<char>(byte),simulatedTime);
+    CHECK(isRecording());
+    for(uint8_t byte:frame) feedButtonByte(static_cast<char>(byte),simulatedTime);
+    CHECK(isRecording()); // Duplicate must not stop the recording.
+    ButtonWire::encode(frame,ButtonWire::Press,4,2,9);
+    for(uint8_t byte:frame) feedButtonByte(static_cast<char>(byte),simulatedTime);
+    CHECK(isRecording()); CHECK(!buttonLinkConfigured());
     send("BTN 4"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("UNCALIBRATED"));
     fresh(); send("REC START"); runFor(3000); runFor(100); send("CANCEL");
     CHECK(!isRecording() && !hasRecording() && isArmHeld());
@@ -331,6 +340,44 @@ void testAdaptiveRecording() {
     fresh(); recordMovingSession(15000); CHECK(startPlayback());
     for(int i=0;i<20000 && !contains("PLAY START");++i) advance();
     advance(1000); finishTask(); CHECK(!isArmHeld());
+}
+void testNanoInputAndLink() {
+    DebouncedButton button; button.initialize(true,0);
+    CHECK(!button.observe(true,1000)); CHECK(!button.observe(false,1001));
+    CHECK(!button.observe(false,1026)); CHECK(!button.observe(true,1030));
+    CHECK(button.observe(true,1055)); CHECK(!button.observe(true,5000));
+    CHECK(!button.observe(false,5010)); CHECK(!button.observe(true,5020)); // bounce
+    CHECK(!button.observe(true,5050));
+    CHECK(!button.observe(false,5060)); CHECK(!button.observe(false,5085));
+    CHECK(!button.observe(true,5090)); CHECK(button.observe(true,5115));
+    button.initialize(false,UINT32_MAX-10); CHECK(!button.observe(true,UINT32_MAX-5));
+    CHECK(button.observe(true,20));
+    fresh(); uint8_t f[8];
+    auto feed=[&](uint8_t type,uint16_t epoch,uint8_t seq,uint8_t key) {
+        ButtonWire::encode(f,type,epoch,seq,key);
+        for(uint8_t b:f) feedButtonByte(static_cast<char>(b),simulatedTime);
+    };
+    feed(ButtonWire::Press,1,1,2); CHECK(!isRecording()); // receiver boot before HELLO
+    feed(ButtonWire::Hello,1,0,0); feed(ButtonWire::Press,1,1,2); CHECK(isRecording());
+    feed(ButtonWire::Press,1,1,2); CHECK(isRecording());
+    feed(ButtonWire::Press,1,3,2); CHECK(isRecording()); // missed frame => disarm
+    feed(ButtonWire::Press,1,4,2); CHECK(isRecording());
+    feed(ButtonWire::Hello,2,0,0); CHECK(isRecording()); // Nano reboot itself does nothing
+    feed(ButtonWire::Press,1,1,2); CHECK(isRecording()); // old epoch
+    feed(ButtonWire::Press,2,1,2); CHECK(!isRecording());
+    for(uint8_t damaged=0;damaged<8;++damaged) {
+        fresh(); feed(ButtonWire::Hello,3,0,0);
+        ButtonWire::encode(f,ButtonWire::Press,3,1,2); f[damaged]^=1;
+        for(uint8_t b:f) feedButtonByte(static_cast<char>(b),simulatedTime);
+        CHECK(!isRecording());
+    }
+    fresh(); feed(ButtonWire::Hello,4,0,0);
+    ButtonWire::encode(f,ButtonWire::Press,4,1,2);
+    for(uint8_t i=0;i<4;++i) feedButtonByte(static_cast<char>(f[i]),simulatedTime);
+    simulatedTime+=100;
+    for(uint8_t i=4;i<8;++i) feedButtonByte(static_cast<char>(f[i]),simulatedTime);
+    CHECK(!isRecording());
+    feed(ButtonWire::Hello,4,255,0); feed(ButtonWire::Press,4,0,2); CHECK(isRecording());
 }
 void testRecordingInputAndErrors() {
     const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA","TOO_SHORT","NO_MOVEMENT","LINK_UNCONFIGURED"};
@@ -540,7 +587,7 @@ void testDecimalDiagnostics() {
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
-    testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
+    testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testNanoInputAndLink(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
     testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

@@ -18,8 +18,8 @@ work.mkdir(parents=True, exist_ok=True)
 for name in ("src", "include"):
     shutil.copytree(root / name, work / name, dirs_exist_ok=True)
 ini = (root / "platformio.ini").read_text(encoding="utf-8-sig")
-ini += "\n    -DMEARM_BUTTON_RX=2\n    -DMEARM_BUTTON_TX=3\n    -DMEARM_BUTTON_BAUD=9600\n"
-ini += '    -Wl,-Map,'+(work/'firmware.map').as_posix()+'\n'
+extra='    -DMEARM_BUTTON_RX=2\n    -DMEARM_BUTTON_BAUD=9600\n    -Wl,-Map,'+(work/'firmware.map').as_posix()+'\n'
+ini=ini.replace('build_flags =\n','build_flags =\n'+extra,1)
 (work / "platformio.ini").write_text(ini, encoding="utf-8")
 shutil.copytree(root / ".pio" / "libdeps" / "uno", work / ".pio" / "libdeps" / "uno", dirs_exist_ok=True)
 (work / "DO_NOT_UPLOAD.txt").write_text("SYNTHETIC TEST MEASUREMENTS ONLY. DO NOT UPLOAD.\n", encoding="utf-8")
