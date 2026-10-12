@@ -34,8 +34,7 @@ void loop()
     pollSerial();
     pollButtonLink();
 
-    // Future input hooks: joystick/manual requests and external button messages.
-    // They must respect isMotionBusy() and submit poses through arm.h.
+    // One control clock, one complete output frame; missed ticks never burst.
     uint32_t now = millis();
     bool controlDue = static_cast<uint32_t>(now - lastControlTime) >= CONTROL_INTERVAL_MS;
     if (controlDue) {
@@ -48,5 +47,5 @@ void loop()
     }
     updateRecording(now,commandedPose());
 
-    // Future recording hook: sample the commanded pose after motion updates.
+    // Recording observes the output command; it is not position feedback.
 }

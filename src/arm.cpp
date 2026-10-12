@@ -50,8 +50,9 @@ void initializeArm()
     for (uint8_t i = 0; i < JointCount; ++i) {
         joints[i].commandedAngle = output.angles[i];
         if (joints[i].outputEnabled) {
-            servos[i].attach(joints[i].servoPin);
+            // Seed the pulse target before enabling the Timer1 channel.
             servos[i].write(static_cast<int>(joints[i].commandedAngle));
+            servos[i].attach(joints[i].servoPin);
         }
     }
     held = false;

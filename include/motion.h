@@ -54,6 +54,4 @@ bool pauseMotion(uint32_t now);
 bool resumeMotion(uint32_t now);
 void cancelMotion();
 
-// Future multi-segment drawings and pick/place actions will advance one step
-// here and share pause/resume/cancel. Recording will observe commanded poses;
-// its bounded storage is added only when the recording feature is implemented.
+// Every automatic behavior shares this owner, including paused/validating tasks.

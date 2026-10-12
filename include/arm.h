@@ -49,6 +49,5 @@ bool isArmHeld();
 void holdArm();
 void resumeArm();
 
-// Future joystick control will use joystickPin/center/directionSign, build a
-// complete Pose, and submit it here. Gripper/base outputs remain disabled until
-// their behavior is implemented; do not bypass the pose checks or Servo writes.
+// All sources submit complete poses; only arm owns Servo output. Base/gripper
+// require explicitly valid hardware calibration before channels are attached.

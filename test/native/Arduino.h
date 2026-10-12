@@ -49,6 +49,7 @@ struct SerialStub {
     std::string output;
     size_t bytesRead = 0;
     unsigned long baud = 0;
+    uint32_t printCostMs = 0;
 
     void begin(unsigned long value) { baud = value; }
     int available() const { return static_cast<int>(input.size()); }
@@ -59,16 +60,17 @@ struct SerialStub {
         ++bytesRead;
         return value;
     }
-    void print(const __FlashStringHelper* value) { output += reinterpret_cast<const char*>(value); }
-    void print(const char* value) { output += value; }
-    void print(char* value) { output += value; }
-    void print(char value) { output += value; }
-    template<class T> void print(T value) { output += std::to_string(value); }
+    void print(const __FlashStringHelper* value) { output += reinterpret_cast<const char*>(value); simulatedTime+=printCostMs; }
+    void print(const char* value) { output += value; simulatedTime+=printCostMs; }
+    void print(char* value) { output += value; simulatedTime+=printCostMs; }
+    void print(char value) { output += value; simulatedTime+=printCostMs; }
+    template<class T> void print(T value) { output += std::to_string(value); simulatedTime+=printCostMs; }
     void print(float value, int precision)
     {
         std::ostringstream stream;
         stream << std::fixed << std::setprecision(precision) << value;
         output += stream.str();
+        simulatedTime+=printCostMs;
     }
     void println() { output += "\r\n"; }
     template<class T> void println(T value) { print(value); println(); }

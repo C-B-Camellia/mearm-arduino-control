@@ -37,8 +37,7 @@ struct IKResult3D {
 FKResult solveFK(float shoulderAngle, float elbowAngle);
 IKResult solveIK(float x, float z);
 
-// Future base rotation and pencil offsets belong in a separately calibrated
-// coordinate conversion. This module currently models the original x/z plane.
+// World tool coordinates in mm. Uncalibrated FK returns NaN, IK returns invalid.
 Point3D solveFK3D(float j0, float j1, float j2);
 
 IKResult3D solveIK3D(const Point3D& target);

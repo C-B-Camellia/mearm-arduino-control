@@ -176,21 +176,22 @@ void validateOne() {
         ++task.status.validatedWaypoints;
         if(task.status.validatedWaypoints==task.status.totalWaypoints) {
             if(task.status.kind==TaskKind::LinePreview) finish();
-            else { task.status.state=MotionState::Running; task.lastUpdate=millis(); Serial.println(F("PATH VALID")); }
+            else { task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); Serial.println(F("PATH VALID")); }
         }
     }
 }
 void execute(uint32_t now) {
     if(task.endpointQueued) return;
     if(!task.segmentLoaded) {
+        Point3D previous{};
+        if(isDrawingKind(task.status.kind)) previous=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
         task.segmentStart=commandedPose();
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
         task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/automaticSpeed())));
         if(isDrawingKind(task.status.kind)) {
-            Point3D a=solveFK3D(task.segmentStart.angles[Base],task.segmentStart.angles[Shoulder],task.segmentStart.angles[Elbow]);
             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
-            float dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
+            float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
             float feed=10.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
             task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
         }

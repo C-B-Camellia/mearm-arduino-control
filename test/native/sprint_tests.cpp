@@ -18,6 +18,9 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#ifdef LEGACY_REFERENCE
+#include "legacy_reference.h"
+#endif
 
 uint32_t simulatedTime = 0;
 std::vector<ServoWrite> servoWrites;
@@ -48,7 +51,7 @@ void fresh() {
     for (uint8_t i=0;i<JointCount;++i) joints[i]=original[i];
     hardwareConfig=HardwareConfig{}; resetControlSettings(); clearSyntheticPickPrograms();
     analogValues[0]=506; analogValues[1]=519; analogValues[2]=515; analogValues[3]=519;
-    simulatedTime=0; servoWrites.clear(); attachedPins.clear(); delayCalls.clear();
+    simulatedTime=0; Serial.printCostMs=0; servoWrites.clear(); attachedPins.clear(); delayCalls.clear();
     Serial.input.clear(); Serial.output.clear(); setup(); advance(); advance();
     CHECK(attachedPins.size()==2 && attachedPins[0]==8 && attachedPins[1]==7);
     CHECK(delayCalls.size()==1 && delayCalls[0]==STARTUP_DELAY_MS);
@@ -90,6 +93,11 @@ void testMath() {
         if(!isSafePlanarPose(j1-0.01f,j2-0.01f) || j1==20 || j2==40 || j1==125 || j2==130) continue;
         FKResult fk=solveFK(j1,j2); IKResult ik=solveIK(fk.position.x,fk.position.z);
         CHECK(ik.valid); CHECK(std::fabs(ik.j1-j1)<0.001f); CHECK(std::fabs(ik.j2-j2)<0.001f);
+#ifdef LEGACY_REFERENCE
+        auto oldFK=legacy::solveFK(j1,j2); auto oldIK=legacy::solveIK(fk.position.x,fk.position.z);
+        CHECK(oldFK.position.x==fk.position.x && oldFK.position.z==fk.position.z);
+        CHECK(oldIK.valid==ik.valid && oldIK.j1==ik.j1 && oldIK.j2==ik.j2);
+#endif
     }
     CHECK(!solveIK(0,0).valid); CHECK(!solveIK(1000,1000).valid);
     CHECK(!solveIK(std::numeric_limits<float>::infinity(),0).valid);
@@ -233,6 +241,18 @@ void testCurveSampler() {
         for(uint8_t i=0;i<shapeVertexCount(shape);++i) { CHECK(shapeVertex(shape,i,{0,0},{10,10},out)); CHECK(out.x>=0 && out.x<=10 && out.y>=0 && out.y<=10); }
     }
 }
+TeachPoint blendPoint(const TeachPoint& a,const TeachPoint& b,float t) { return {a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t}; }
+void testCurveIndependentReference() {
+    TeachPoint a={0,0},b={3,4},c={9,1},d={14,6};
+    float t0=0,t1=sqrtf(pointDistance(a,b)),t2=t1+sqrtf(pointDistance(b,c)),t3=t2+sqrtf(pointDistance(c,d));
+    for(int i=0;i<=100;++i) {
+        float u=i/100.0f,t=t1+(t2-t1)*u;
+        TeachPoint a1=blendPoint(a,b,(t-t0)/(t1-t0)),a2=blendPoint(b,c,(t-t1)/(t2-t1)),a3=blendPoint(c,d,(t-t2)/(t3-t2));
+        TeachPoint b1=blendPoint(a1,a2,(t-t0)/(t2-t0)),b2=blendPoint(a2,a3,(t-t1)/(t3-t1));
+        TeachPoint reference=blendPoint(b1,b2,(t-t1)/(t2-t1)),actual;
+        CHECK(centripetalSample(a,b,c,d,u,actual)); CHECK(pointDistance(reference,actual)<0.0001f);
+    }
+}
 void prepareTeachFive() {
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
@@ -279,11 +299,30 @@ void testTeachAndDraw() {
         CHECK(startBasicShape(shape,{86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
     }
 }
+void testFailureAndLatency() {
+    fresh(); send(std::string("J1 11")+char(1)+"0"); CHECK(servoWrites.empty() && !isMotionBusy());
+    fresh(); send("J1 100");
+    while(motionStatus().state==MotionState::Validating) loop();
+    Serial.printCostMs=1;
+    for(int i=0;isMotionBusy() && i<100;++i) {
+        size_t before=servoWrites.size(); send("STATUS"); CHECK(servoWrites.size()<=before+2); advance();
+    }
+    finishTask(); CHECK(commandedPose().angles[Shoulder]==100); Serial.printCostMs=0; checkWritesSafe();
+    fresh(); send("J1 100");
+    while(motionStatus().state==MotionState::Validating) loop();
+    joints[Shoulder].minAngle=121; // Fault injection, never a production limit change.
+    advance(); CHECK(!isMotionBusy() && servoWrites.empty() && isArmHeld());
+    prepareTeachFive(); CHECK(startDrawLine({1000,1000},{2000,2000})); finishTask();
+    CHECK(servoWrites.empty() && isArmHeld());
+    fresh(); CHECK(!setManualSpeedScale(0.5f)); CHECK(!setManualSpeedScale(2));
+    float value; CHECK(parseNumber("-.25",value) && value==-0.25f);
+    CHECK(!parseNumber("1e2",value)); CHECK(!parseNumber("--1",value));
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testHomeAndPick();
-    testCurveSampler(); testTeachAndDraw();
+    testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency();
     std::cout << "PASS: " << assertions << " checks\n";
 }
