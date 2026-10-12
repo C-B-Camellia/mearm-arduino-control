@@ -82,13 +82,13 @@ Point3D solveFK3D(float j0,float j1,float j2)
     return {radial*cos(yaw)-c.toolTangential*sin(yaw),radial*sin(yaw)+c.toolTangential*cos(yaw),height};
 }
 
-IKResult3D solveIK3D(const Point3D& p)
+// Release inverse-math scratch before the FK verification call chain.
+static __attribute__((noinline)) bool inverse3D(const Point3D& p,IKResult3D& out)
 {
-    IKResult3D out{};
-    if(!cartesianCalibrationValid() || !isfinite(p.x) || !isfinite(p.y) || !isfinite(p.z)) return out;
+    if(!cartesianCalibrationValid() || !isfinite(p.x) || !isfinite(p.y) || !isfinite(p.z)) return false;
     const CartesianCalibration& c=hardwareConfig.cartesian;
     float squared=p.x*p.x+p.y*p.y-c.toolTangential*c.toolTangential;
-    if(!isfinite(squared) || squared<=0.0001f) return out;
+    if(!isfinite(squared) || squared<=0.0001f) return false;
     float radial=sqrt(squared);
     float yaw=(atan2(p.y,p.x)-atan2(c.toolTangential,radial))*180.0f/PI;
     float bestDistance=10000;
@@ -99,25 +99,32 @@ IKResult3D solveIK3D(const Point3D& p)
         float distance=fabs(angle-joints[Base].commandedAngle);
         if(distance<bestDistance) { out.j0=angle; bestDistance=distance; baseFound=true; }
     }
-    if(!baseFound) return out;
+    if(!baseFound) return false;
     float x=radial-c.shoulderRadial, z=p.z-c.shoulderHeight;
     if(c.toolModel==ToolModel::FixedPlanar) {
         IKResult ik=solveIK(x-c.toolRadial,z-c.toolVertical);
-        if(!ik.valid) return out;
+        if(!ik.valid) return false;
         out.j1=ik.j1; out.j2=ik.j2;
     } else {
         float lx=L2+c.toolRadial, lz=c.toolVertical;
         float effective=sqrt(lx*lx+lz*lz);
-        if(effective<0.001f) return out;
+        if(effective<0.001f) return false;
         float d=(x*x+z*z-L1*L1-effective*effective)/(2.0f*L1*effective);
-        if(!isfinite(d) || d<-1 || d>1) return out;
+        if(!isfinite(d) || d<-1 || d>1) return false;
         float q=-acos(d);
         float alpha=atan2(z,x)-atan2(effective*sin(q),L1+effective*cos(q));
         float beta=alpha+q-atan2(lz,lx);
         out.j2=RIGHT_ZERO-alpha*180.0f/PI;
         out.j1=beta*180.0f/PI+180.0f+ELBOW_OFFSET-RIGHT_ZERO;
-        if(!isSafePlanarPose(out.j1,out.j2)) return out;
+        if(!isSafePlanarPose(out.j1,out.j2)) return false;
     }
+    return true;
+}
+
+IKResult3D solveIK3D(const Point3D& p)
+{
+    IKResult3D out{};
+    if(!inverse3D(p,out)) return out;
     Point3D check=solveFK3D(out.j0,out.j1,out.j2);
     out.valid=isfinite(check.x) && fabs(check.x-p.x)<0.05f && fabs(check.y-p.y)<0.05f && fabs(check.z-p.z)<0.05f;
     return out;

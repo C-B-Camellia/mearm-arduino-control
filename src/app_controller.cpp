@@ -21,7 +21,7 @@ __attribute__((noinline)) bool dispatchServiceAction(const Action& action,const 
         return startPickPlace(action.argument);
     case AppAction::RecordStart:
         if(currentWorkflow()!=Workflow::Normal) return rejectControl(ControlError::Busy);
-        Serial.println(F("REC overwrites RAM")); return startRecording(millis());
+        return startRecording(millis());
     case AppAction::RecordStop: return stopRecording(millis());
     case AppAction::RecordToggle:
         return dispatchAction({isRecording()?AppAction::RecordStop:AppAction::RecordStart,0});
@@ -52,7 +52,7 @@ __attribute__((noinline)) bool dispatchServiceAction(const Action& action,const 
 __attribute__((noinline)) bool dispatchAction(const Action& action,const float* values) {
     if(action.type==AppAction::Button) return onButtonPressed(action.argument);
     if(action.type==AppAction::Home) {
-        if(isRecording()) return rejectControl(ControlError::Busy);
+        if(isRecording()) clearRecording();
         return cancelAndReturnHome();
     }
     return dispatchServiceAction(action,values);
@@ -65,7 +65,7 @@ bool onButtonPressed(uint8_t button) {
         if(button==3) return cancelAndReturnHome();
         return true;
     }
-    if(isRecording() && button!=2) return rejectControl(ControlError::Busy);
+    if(isRecording() && button!=2 && button!=4) return rejectControl(ControlError::Busy);
     if(isMotionBusy() && button!=4) return rejectControl(ControlError::Busy);
     if(teachingActive()) {
         if(isMotionBusy()) return rejectControl(ControlError::Busy);
@@ -148,9 +148,7 @@ bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
     success=dispatchAction(action); return true;
 }
 void printApplicationStatus() {
-    RecordingStatus s=recordingStatus();
-    Serial.print(F("workflow=")); Serial.print(static_cast<int>(currentWorkflow()));
-    Serial.print(F(" rec=")); Serial.print(static_cast<int>(s.state));
-    Serial.print(F(" frames=")); Serial.print(s.count); Serial.print(F(" ms=")); Serial.println(s.duration);
+    Serial.print(F("workflow=")); Serial.println(static_cast<int>(currentWorkflow()));
+    printRecordingStatus();
     Serial.print(F("points=")); Serial.print(teachPointCount()); Serial.print(F(" paper=")); Serial.println(drawSettingsValid());
 }

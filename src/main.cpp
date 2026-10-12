@@ -44,8 +44,8 @@ void loop()
     if(controlDue) {
         if(!isMotionBusy()) updateManualControl(now);
         if(!applyPendingPose()) { rejectControl(ControlError::Unsafe); cancelMotion(); printControlError(); }
+        updateRecording(now,commandedPose());
     }
-    updateRecording(now,commandedPose());
 
     // Recording observes the output command; it is not position feedback.
 }

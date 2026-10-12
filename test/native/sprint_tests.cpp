@@ -125,7 +125,7 @@ void testParser() {
     CHECK(contains("J=120 95") || contains("J=90 120 95 50"));
     Serial.output.clear(); send("HELP");
     for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
-    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==6);
+    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==5);
     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
         Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
     }
@@ -201,32 +201,154 @@ void testIndependentSpeedAndClock() {
     CHECK(commandedPose().angles[Shoulder]==100); checkWritesSafe();
 }
 void recordMovingSession(uint32_t duration) {
-    send("REC START"); CHECK(isRecording());
+    send("REC START"); CHECK(isRecording()); runFor(3000);
+    CHECK(recordingStatus().state==RecordState::Recording && recordingStatus().duration==0);
     for(uint32_t t=20;t<=duration;t+=20) { analogValues[1]=(t%2000<1000)?700:300; advance(); }
     analogValues[1]=519; send("REC STOP");
 }
 void testRecordingAndButtons() {
     fresh(); send("PLAY"); CHECK(contains("NO_DATA"));
-    send("BTN 2"); CHECK(isRecording()); runFor(1000); send("BTN 2");
-    CHECK(!hasRecording() && contains("TOO_SHORT"));
-    fresh(); send("REC START"); runFor(11000); send("REC STOP");
-    CHECK(!hasRecording() && contains("NO_MOVEMENT"));
-    fresh(); recordMovingSession(11200); CHECK(hasRecording());
-    CHECK(recordingStatus().duration>10000 && recordingStatus().count<=RECORD_CAPACITY);
+    send("BTN 2"); CHECK(recordingStatus().state==RecordState::Arming);
+    runFor(1000); CHECK(contains("REC ARMING 2")); send("BTN 3"); CHECK(contains("BUSY"));
+    send("BTN 2"); CHECK(!isRecording() && !hasRecording());
+    fresh(); send("REC START"); runFor(3000); runFor(11000); send("REC STOP");
+    CHECK(hasRecording() && recordingStatus().duration==11000); // Stationary/short takes are retained.
+    CHECK(recordingStatus().count==2 && contains("REC 10s; B2 SAVE"));
+    fresh(); recordMovingSession(15000); CHECK(hasRecording());
     RecordedFrame first,last; CHECK(getRecordedFrame(0,first));
     CHECK(getRecordedFrame(recordingStatus().count-1,last));
-    CHECK(first.timeMs==0 && last.timeMs==11200);
+    CHECK(first.timeMs==0 && last.timeMs==15000);
     servoWrites.clear(); send("BTN 3"); CHECK(isMotionBusy());
     send("HOLD"); size_t count=servoWrites.size(); runFor(500); CHECK(count==servoWrites.size());
     send("GO"); finishTask(); CHECK(commandedPose().angles[Shoulder]==last.angles[Shoulder]); checkWritesSafe();
-    fresh(); send("REC START"); CHECK(!startJointMove(commandedPose()));
-    for(uint32_t t=20;t<=17000;t+=20) { analogValues[1]=(t%2000<1000)?700:300; advance(); }
-    CHECK(!isRecording() && hasRecording() && recordingStatus().count==RECORD_CAPACITY);
+    fresh(); recordMovingSession(20000); CHECK(hasRecording() && !isRecording());
+    CHECK(recordingStatus().duration==RECORD_MAX_MS && contains("REC MAX"));
     fresh(); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
     CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
     CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('9',simulatedTime); feedButtonByte('\n',simulatedTime);
     CHECK(contains("INVALID")); CHECK(!buttonLinkConfigured());
-    send("BTN 4"); CHECK(isRecording() && contains("BUSY"));
+    send("BTN 4"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("UNCALIBRATED"));
+    fresh(); send("REC START"); runFor(3000); runFor(100); send("CANCEL");
+    CHECK(!isRecording() && !hasRecording() && isArmHeld());
+}
+float reconstruct(uint16_t time,uint8_t joint) {
+    RecordedFrame a,b; CHECK(getRecordedFrame(0,a));
+    for(uint8_t i=1;i<recordingStatus().count;++i) {
+        CHECK(getRecordedFrame(i,b)); CHECK(b.timeMs>a.timeMs);
+        if(time<=b.timeMs) return a.angles[joint]+(static_cast<int>(b.angles[joint])-a.angles[joint])*static_cast<float>(time-a.timeMs)/(b.timeMs-a.timeMs);
+        a=b;
+    }
+    return a.angles[joint];
+}
+void testAdaptiveRecording() {
+    // Desktop-only raw histories measure actual error against every observation.
+    for(int scenario=0;scenario<6;++scenario) {
+        fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+        if(scenario==4) simulatedTime=UINT32_MAX-3100; // ARMING + record crosses millis wrap.
+        CHECK(startRecording(simulatedTime)); runFor(3000);
+        uint16_t duration=scenario==5?20000:15000;
+        std::vector<Pose> raw{commandedPose()};
+        for(uint16_t t=20;t<=duration;t+=20) {
+            Pose p=raw.front();
+            if(scenario==0) { p.angles[Base]=90+t/500; p.angles[Shoulder]=120-t/1000; }
+            if(scenario==1) { // Motion, a real 5-second dwell, reverse motion.
+                p.angles[Base]=90+(t<5000?t/250:t<10000?20:20-(t-10000)/250);
+            }
+            if(scenario==2) { p.angles[Base]=90+(t/20%2?6:-6); } // Worst-case reversals.
+            if(scenario>=3) {
+                p.angles[Base]=80+t/20%21;
+                p.angles[Shoulder]=110+t/20%11;
+                p.angles[Elbow]=95+t/20%16;
+                p.angles[Gripper]=30+t/20%41;
+            }
+            CHECK(requestPose(p)); CHECK(applyPendingPose());
+            simulatedTime+=20; updateRecording(simulatedTime,commandedPose()); raw.push_back(commandedPose());
+            CHECK(recordingStatus().count<=RECORD_CAPACITY);
+            CHECK(t<RECORD_MAX_MS?isRecording():hasRecording());
+        }
+        if(isRecording()) CHECK(stopRecording(simulatedTime));
+        CHECK(recordingStatus().duration==duration);
+        float error=0;
+        for(size_t i=0;i<raw.size();++i) for(uint8_t j=0;j<JointCount;++j)
+            error=max(error,fabsf(reconstruct(i*20,j)-raw[i].angles[j]));
+        CHECK(error<=recordingStatus().errorBound+0.001f);
+        if(scenario<2) CHECK(error<=1.001f);
+        else CHECK(recordingStatus().degraded && recordingStatus().count>=75);
+        std::cout<<"record scenario="<<scenario<<" frames="<<int(recordingStatus().count)<<" error="<<error<<" bound="<<int(recordingStatus().errorBound)<<"\n";
+        RecordedFrame first,last; CHECK(getRecordedFrame(0,first)); CHECK(getRecordedFrame(recordingStatus().count-1,last));
+        for(uint8_t j=0;j<JointCount;++j) CHECK(first.angles[j]==raw.front().angles[j] && last.angles[j]==raw.back().angles[j]);
+        CHECK(first.timeMs==0 && last.timeMs==duration);
+        if(scenario==3) {
+            CHECK(startPlayback());
+            finishTask(); CHECK(!isArmHeld());
+            for(uint8_t j=0;j<JointCount;++j) CHECK(commandedPose().angles[j]==raw.back().angles[j]);
+            for(size_t i=0;i+3<servoWrites.size();i+=4) {
+                CHECK(servoWrites[i].angle>=10 && servoWrites[i].angle<=170);
+                CHECK(isSafePlanarPose(servoWrites[i+1].angle,servoWrites[i+2].angle));
+                CHECK(servoWrites[i+3].angle>=20 && servoWrites[i+3].angle<=100);
+            }
+        }
+    }
+    // Replay independent of global/manual speed; safe approach completes before clock starts.
+    fresh(); recordMovingSession(15000); send("SPEED 5"); send("H");
+    CHECK(startPlayback());
+    for(int i=0;i<20000 && !contains("PLAY START");++i) advance();
+    CHECK(contains("PLAY START")); uint32_t began=simulatedTime;
+    runFor(4000); CHECK(pauseMotion(simulatedTime)); size_t writes=servoWrites.size();
+    runFor(1700); CHECK(servoWrites.size()==writes); CHECK(resumeMotion(simulatedTime));
+    finishTask(); CHECK(simulatedTime-began>=16700 && simulatedTime-began<=16740);
+    checkWritesSafe();
+    // A sub-tick final stop retains its actual timestamp, not a 20 ms rounding.
+    fresh(); recordMovingSession(15000); // Start a separate take.
+    send("REC START"); runFor(3000); runFor(15000);
+    simulatedTime+=7; CHECK(stopRecording(simulatedTime));
+    RecordedFrame ended; CHECK(getRecordedFrame(recordingStatus().count-1,ended));
+    CHECK(ended.timeMs==15007);
+    // Preparation time is excluded, including manual adjustment during ARMING.
+    fresh(); send("BTN 2"); analogValues[1]=700; runFor(200); analogValues[1]=519;
+    CHECK(recordingStatus().count==0); runFor(2800); CHECK(recordingStatus().duration==0);
+    CHECK(stopRecording(simulatedTime)); RecordedFrame armed;
+    CHECK(getRecordedFrame(0,armed)); CHECK(armed.angles[Shoulder]<120 && armed.timeMs==0);
+    // Rate ceiling uniformly stretches the whole timeline, with PC disclosure.
+    fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+    CHECK(startRecording(simulatedTime)); runFor(3000);
+    Pose jump=commandedPose(); jump.angles[Base]=150;
+    CHECK(requestPose(jump)); CHECK(applyPendingPose());
+    simulatedTime+=20; updateRecording(simulatedTime,commandedPose());
+    for(int i=0;i<24;++i) { simulatedTime+=20; updateRecording(simulatedTime,commandedPose()); }
+    CHECK(stopRecording(simulatedTime)); CHECK(startPlayback());
+    for(int i=0;i<20000 && !contains("PLAY START");++i) advance();
+    CHECK(contains("PLAY timeScale=25.00")); began=simulatedTime;
+    finishTask(); CHECK(simulatedTime-began>=12500 && simulatedTime-began<=12540);
+    CHECK(commandedPose().angles[Base]==150 && !isArmHeld());
+    // B4 aborts both ARMING and recording through the same safe HOME owner.
+    fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+    send("BTN 2"); runFor(3500); send("BTN 4");
+    CHECK(!isRecording() && !hasRecording() && motionStatus().kind==TaskKind::Home);
+    finishTask(); CHECK(!isArmHeld());
+    // Delayed scheduler crosses several retained timestamps in one update.
+    fresh(); recordMovingSession(15000); CHECK(startPlayback());
+    for(int i=0;i<20000 && !contains("PLAY START");++i) advance();
+    advance(1000); finishTask(); CHECK(!isArmHeld());
+}
+void testRecordingInputAndErrors() {
+    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA","TOO_SHORT","NO_MOVEMENT","LINK_UNCONFIGURED"};
+    for(uint8_t i=0;i<13;++i) {
+        Serial.output.clear(); rejectControl(static_cast<ControlError>(i)); printControlError();
+        CHECK(Serial.output==std::string("ERR ")+names[i]+"\r\n");
+    }
+    for(float bad:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity(),-1.0f,181.0f}) {
+        fresh(); CHECK(startRecording(simulatedTime));
+        Pose p=commandedPose(); p.angles[Base]=bad;
+        updateRecording(simulatedTime+3000,p);
+        CHECK(!isRecording() && !hasRecording() && recordingStatus().count==0);
+        CHECK(lastControlError()==ControlError::Unsafe && servoWrites.empty());
+    }
+    fresh(); CHECK(startRecording(simulatedTime)); runFor(3000);
+    Pose bad=commandedPose(); bad.angles[Shoulder]=20; // In range separately, unsafe combination.
+    updateRecording(simulatedTime+20,bad);
+    CHECK(!isRecording() && !hasRecording() && lastControlError()==ControlError::Unsafe);
 }
 void testHomeAndPick() {
     fresh(); send("HOME"); CHECK(contains("UNCALIBRATED") && !isMotionBusy() && servoWrites.empty());
@@ -418,7 +540,7 @@ void testDecimalDiagnostics() {
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
-    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
+    testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
     testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

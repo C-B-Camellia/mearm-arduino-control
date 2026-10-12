@@ -7,6 +7,7 @@
 #include "hardware_config.h"
 #include "recording.h"
 #include "pick_place.h"
+#include "serial_format.h"
 #include <math.h>
 
 namespace {
@@ -15,7 +16,8 @@ struct MotionTask {
     MotionState resumeState;
     Pose origin,segmentStart,segmentTarget;
     // TaskKind is the discriminator: JointMove/Home use target; Cartesian,
-    // line and drawing tasks use cart. No task reads both payloads.
+    // line/drawing tasks use cart; Playback uses cart.start.x as time scale.
+    // No task reads both payloads.
     union {
         Pose target;
         struct { Point3D start,end; } cart;
@@ -155,7 +157,7 @@ void finish(bool failed=false) {
     else {
         if(kind==TaskKind::LinePreview) Serial.println(F("LINE VALID"));
         else if(kind==TaskKind::LineExecution) Serial.println(F("RUNLINE DONE"));
-        else Serial.println(F("TASK DONE (commanded)"));
+        else Serial.println(F("DONE(cmd)"));
     }
     syncManualTarget(millis());
 }
@@ -166,17 +168,23 @@ bool begin(TaskKind kind,uint16_t count) {
     task.status.totalWaypoints=count; task.origin=commandedPose(); task.segmentStart=task.origin;
     clearControlError(); return true;
 }
-void validateOne() {
+__attribute__((noinline)) void validateOne() {
     if(!task.segmentLoaded) {
         if(!sampleGoal(task.status.validatedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.validationSubsteps=max(1,static_cast<int>(ceilf(maxDifference(task.segmentStart,task.segmentTarget))));
         task.validationSubstep=0; task.segmentLoaded=true;
+        if(task.status.kind==TaskKind::Playback && task.status.validatedWaypoints>0) {
+            RecordedFrame a,b;
+            getRecordedFrame(task.status.validatedWaypoints-1,a); getRecordedFrame(task.status.validatedWaypoints,b);
+            // A uniform, reported time scale, independent of H/L and SPEED.
+            task.cart.start.x=max(task.cart.start.x,maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/(120.0f*(b.timeMs-a.timeMs)));
+        }
     }
     ++task.validationSubstep;
     Pose p=interpolate(task.segmentStart,task.segmentTarget,static_cast<float>(task.validationSubstep)/task.validationSubsteps), out;
     if(!prepareOutputPose(p,out)) {
         rejectControl(ControlError::Unsafe);
-        if(task.status.kind==TaskKind::LineExecution) Serial.println(F("RUNLINE ABORTED before motion"));
+        if(task.status.kind==TaskKind::LineExecution) Serial.println(F("RUNLINE ABORTED (preflight)"));
         finish(true); return;
     }
     if(task.validationSubstep==task.validationSubsteps) {
@@ -184,29 +192,54 @@ void validateOne() {
         ++task.status.validatedWaypoints;
         if(task.status.validatedWaypoints==task.status.totalWaypoints) {
             if(task.status.kind==TaskKind::LinePreview) finish();
-            else { task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); Serial.println(F("PATH VALID")); }
+            else {
+                task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); Serial.println(F("PATH VALID"));
+                if(task.status.kind==TaskKind::Playback && task.cart.start.x>1) {
+                    Serial.print(F("PLAY timeScale=")); printDecimal(task.cart.start.x); Serial.println();
+                }
+            }
         }
     }
 }
-void execute(uint32_t now) {
+__attribute__((noinline)) void executePlayback(uint32_t now) {
+    // First frame has already been approached and acknowledged. Carry clock
+    // overshoot across keyframes instead of rounding every segment to a tick.
+    task.elapsed+=now-task.lastUpdate; task.lastUpdate=now;
+    float time=task.elapsed/task.cart.start.x;
+    RecordedFrame a,b;
+    uint8_t index=task.status.completedWaypoints-1;
+    getRecordedFrame(index,a);
+    while(static_cast<uint16_t>(index+1)<task.status.totalWaypoints) {
+        getRecordedFrame(index+1,b);
+        if(time<b.timeMs) break;
+        a=b; ++index;
+    }
+    task.status.completedWaypoints=index+1;
+    bool ended=static_cast<uint16_t>(index+1)==task.status.totalWaypoints;
+    float t=ended?0:(time-a.timeMs)/(b.timeMs-a.timeMs);
+    for(uint8_t j=0;j<JointCount;++j) {
+        task.segmentTarget.angles[j]=ended?a.angles[j]:a.angles[j]+(static_cast<int>(b.angles[j])-a.angles[j])*t;
+    }
+    if(!requestPose(task.segmentTarget)) { rejectControl(ControlError::Unsafe); finish(true); return; }
+    // Reuse normal endpoint acknowledgement without double-counting the end.
+    if(ended) { --task.status.completedWaypoints; task.endpointQueued=true; }
+}
+__attribute__((noinline)) void execute(uint32_t now) {
     if(task.endpointQueued) return;
+    if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) { executePlayback(now); return; }
     if(!task.segmentLoaded) {
         Point3D previous{};
         if(isDrawingKind(task.status.kind)) previous=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
         task.segmentStart=commandedPose();
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
-        task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/automaticSpeed())));
+        float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
+        task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
         if(isDrawingKind(task.status.kind)) {
             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
             float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
             float feed=10.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
             task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
-        }
-        if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) {
-            RecordedFrame a,b;
-            getRecordedFrame(task.status.completedWaypoints-1,a); getRecordedFrame(task.status.completedWaypoints,b);
-            task.duration=max(task.duration,static_cast<uint32_t>(b.timeMs-a.timeMs));
         }
     }
     uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
@@ -256,6 +289,9 @@ void updateMotion(uint32_t now,bool controlDue) {
     }
     if(task.endpointQueued && !hasPendingPose()) {
         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
+        if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
+            task.elapsed=0; task.lastUpdate=now; Serial.println(F("PLAY START"));
+        }
         if(task.status.kind==TaskKind::PickPlace) {
             Pose unused; getPickStage(task.objectIndex,task.status.completedWaypoints-1,unused,task.dwellRemaining);
         }
@@ -267,8 +303,12 @@ void updateMotion(uint32_t now,bool controlDue) {
 bool pauseMotion(uint32_t now) {
     if(!isMotionBusy()) return false;
     if(task.status.state==MotionState::Paused) return true;
+    if(task.status.state==MotionState::Running && task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) task.elapsed+=now-task.lastUpdate;
     task.resumeState=task.status.state; task.status.state=MotionState::Paused;
-    task.lastUpdate=now; holdArm(); return true;
+    task.lastUpdate=now;
+    // HOLD discards pending output. It must not acknowledge an unwritten end.
+    if(hasPendingPose()) task.endpointQueued=false;
+    holdArm(); return true;
 }
 bool resumeMotion(uint32_t now) {
     if(!isMotionBusy()) return false;
@@ -287,7 +327,8 @@ bool startPickPlace(uint8_t object) {
 }
 bool startPlayback() {
     if(!hasRecording()) return rejectControl(ControlError::NoData);
-    return begin(TaskKind::Playback,recordingStatus().count);
+    if(!begin(TaskKind::Playback,recordingStatus().count)) return false;
+    task.cart.start.x=1; return true;
 }
 bool cancelAndReturnHome() {
     bool lift=drawingTaskActive();

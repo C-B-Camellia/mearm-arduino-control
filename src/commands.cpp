@@ -64,12 +64,12 @@ void printStatus() {
     printApplicationStatus();
 }
 void printHelp() {
-    Serial.println(F("IK/XY/LINE/RUNLINE x z; XYZ/IK3 x y z; J0..3 deg\r\n"
-        "xJ0,yJ1,zJ2; MODE JOINT|CART; O/S H/L\r\n"
-        "SPEED 5..90; HOLD GO CANCEL STATUS HELP\r\n"
-        "A B C; REC [START|STOP]; PLAY HOME BTN 1..4\r\n"
-        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK LIST CLEAR ORDER 1..5\r\n"
-        "DRAW POLY/CURVE/LINE x1 y1 x2 y2/SHAPE N|TRIANGLE|Z|V [bounds]"));
+    Serial.println(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
+        "MODE JOINT|CART; O/S H/L; SPEED\r\n"
+        "HOLD GO CANCEL STATUS HELP; REC PLAY HOME A B C BTN 1..4\r\n"
+        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR ORDER\r\n"
+        "DRAW POLY/CURVE/LINE/SHAPE N/TRIANGLE/Z/V"));
+
 }
 bool angleTriple(char* line) {
     Pose pose=commandedPose(); uint8_t seen=0; char* save=nullptr;
@@ -125,6 +125,7 @@ void executeLine(char* line) {
         uint8_t id=c[1]-'0';
         if(!joints[id].outputEnabled) { rejectControl(ControlError::Disabled); printControlError(); return; }
         Pose p=commandedPose(); p.angles[id]=v[0]; result(startJointMove(p)); return;
+
     }
     if(count==2 && op==6) {
         if(commandIs(tokens[1],"JOINT")) result(setControlMode(ControlMode::Joint));

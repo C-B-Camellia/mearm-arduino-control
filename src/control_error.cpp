@@ -1,23 +1,25 @@
 #include "control_error.h"
-namespace { ControlError error=ControlError::None; }
+#ifdef __AVR__
+#include <avr/pgmspace.h>
+#else
+#define PROGMEM
+#endif
+namespace {
+ControlError error=ControlError::None;
+const char errorNames[] PROGMEM="INVALID\0BUSY\0HELD\0UNCALIBRATED\0DISABLED\0UNSAFE\0UNREACHABLE\0FULL\0NO_DATA\0TOO_SHORT\0NO_MOVEMENT\0LINK_UNCONFIGURED\0";
+const uint8_t errorOffsets[] PROGMEM={0,8,13,18,31,0,40,47,59,64,72,82,94};
+static_assert(sizeof(errorOffsets)==static_cast<uint8_t>(ControlError::LinkUnconfigured)+1,"error table mismatch");
+}
 ControlError lastControlError() { return error; }
 bool rejectControl(ControlError e) { error=e; return false; }
 void clearControlError() { error=ControlError::None; }
 void printControlError() {
+    uint8_t index=static_cast<uint8_t>(error);
+    if(index>=sizeof(errorOffsets)) index=0;
     Serial.print(F("ERR "));
-    switch(error) {
-    case ControlError::None: Serial.println(F("INVALID")); break;
-    case ControlError::Busy: Serial.println(F("BUSY")); break;
-    case ControlError::Held: Serial.println(F("HELD")); break;
-    case ControlError::Uncalibrated: Serial.println(F("UNCALIBRATED")); break;
-    case ControlError::Disabled: Serial.println(F("DISABLED")); break;
-    case ControlError::Invalid: Serial.println(F("INVALID")); break;
-    case ControlError::Unsafe: Serial.println(F("UNSAFE")); break;
-    case ControlError::Unreachable: Serial.println(F("UNREACHABLE")); break;
-    case ControlError::Full: Serial.println(F("FULL")); break;
-    case ControlError::NoData: Serial.println(F("NO_DATA")); break;
-    case ControlError::TooShort: Serial.println(F("TOO_SHORT")); break;
-    case ControlError::NoMovement: Serial.println(F("NO_MOVEMENT")); break;
-    case ControlError::LinkUnconfigured: Serial.println(F("LINK_UNCONFIGURED")); break;
-    }
+#ifdef __AVR__
+    Serial.println(reinterpret_cast<const __FlashStringHelper*>(errorNames+pgm_read_byte(errorOffsets+index)));
+#else
+    Serial.println(errorNames+errorOffsets[index]);
+#endif
 }
