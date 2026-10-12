@@ -25,6 +25,7 @@ shutil.copytree(root / ".pio" / "libdeps" / "uno", work / ".pio" / "libdeps" / "
 (work / "DO_NOT_UPLOAD.txt").write_text("SYNTHETIC TEST MEASUREMENTS ONLY. DO NOT UPLOAD.\n", encoding="utf-8")
 config = work / "src" / "hardware_config.cpp"
 text = config.read_text(encoding="utf-8")
+assert text.count("HardwareConfig hardwareConfig{};")==1, 'Synthetic calibration injection marker changed; refusing partial target'
 text = text.replace("HardwareConfig hardwareConfig{};", """HardwareConfig hardwareConfig={
     {true,10,170,90}, {true,20,100,50},
     {true,ToolModel::DistalLink,1,90,5,30,3,2,4},
@@ -34,6 +35,7 @@ text = text.replace("HardwareConfig hardwareConfig{};", """HardwareConfig hardwa
 config.write_text(text, encoding="utf-8")
 pick = work / "src" / "pick_place.cpp"
 text = pick.read_text(encoding="utf-8")
+assert text.count("const PickProgram programs[3] PROGMEM={};")==1, 'Synthetic pick injection marker changed; refusing partial target'
 program = """{true, {{90,120,95,80},{90,115,95,80},{90,115,95,30},
 {90,120,95,30},{110,120,95,30},{110,115,95,30},
 {110,115,95,80},{110,120,95,80}}, {100,100,200,100,100,100,200,100}}"""
