@@ -1,6 +1,7 @@
 #include "recording.h"
 #include "motion.h"
 #include "control_error.h"
+#include "pick_place.h"
 #include <math.h>
 namespace {
 RecordedFrame frames[RECORD_CAPACITY];
@@ -74,7 +75,7 @@ bool getRecordedFrame(uint8_t index,RecordedFrame& out) {
     out=frames[index]; return true;
 }
 bool startRecording(uint32_t now) {
-    if(isRecording() || isMotionBusy() || hasPendingPose()) return rejectControl(ControlError::Busy);
+    if(isRecording() || isMotionBusy() || hasPendingPose() || isPickSaving()) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
     status=RecordingStatus{}; status.state=RecordState::Arming;
     startedAt=now; reportedSecond=0; Serial.println(F("REC ARMING 3")); clearControlError(); return true;

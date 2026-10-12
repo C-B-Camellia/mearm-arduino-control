@@ -1,6 +1,7 @@
 #include "button_protocol.h"
 #include "../../nano/include/button_scan.h"
 #include "Arduino.h"
+#include "EEPROM.h"
 #include "arm.h"
 #include "commands.h"
 #include "config.h"
@@ -31,6 +32,7 @@ std::vector<int> attachedPins;
 std::vector<uint32_t> delayCalls;
 int analogValues[4] = {506, 519, 515, 519};
 SerialStub Serial;
+EEPROMStub EEPROM;
 void setup();
 void loop();
 namespace {
@@ -127,7 +129,7 @@ void testParser() {
     CHECK(contains("J=120 95") || contains("J=90 120 95 50"));
     Serial.output.clear(); send("HELP");
     for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
-    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==5);
+    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==6);
     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
         Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
     }
@@ -405,7 +407,7 @@ void testHomeAndPick() {
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
     hardwareConfig.home.angles[Shoulder]=110;
     CHECK(startHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
-    Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; }
+    Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; poses[i].angles[Gripper]=i<2 || i>=6?80:30; }
     setSyntheticPickProgram(0,poses); setSyntheticPickProgram(1,poses); setSyntheticPickProgram(2,poses);
     CHECK(onButtonPressed(1)); CHECK(!onButtonPressed(1)); finishTask();
     CHECK(onButtonPressed(1)); finishTask(); CHECK(onButtonPressed(1)); finishTask();
@@ -440,7 +442,7 @@ void testPackedPickCommands() {
     fresh(); syntheticCalibration();
     hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
     Pose poses[PICK_STAGE_COUNT];
-    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110.75f+i; }
+    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110.75f+i; poses[i].angles[Gripper]=i<2 || i>=6?80:30; }
     setSyntheticPickProgram(0,poses); CHECK(pickCalibrationValid(0));
     for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) {
         Pose unpacked; uint16_t dwell;
@@ -468,6 +470,73 @@ void testMotionPayloadTransitions() {
     CHECK(startLine(planar,TaskKind::LineExecution)); finishTask();
     CHECK(!isArmHeld()); CHECK(cancelAndReturnHome()); finishTask();
     CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
+}
+void testRuntimePickPersistence() {
+    fresh(); send("PICK LOAD"); CHECK(contains("NO_DATA") && isArmHeld()); send("GO");
+    send("PICK SET A SRC"); CHECK(contains("UNCALIBRATED") && pickStageMask(0)==0);
+    syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
+    initializeArm(); advance(); advance();
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+    // Eight independently taught accepted command poses; SRC/DST alone cannot run.
+    send("PICK SET A SRC"); send("PICK SET A DST");
+    CHECK(pickStageMask(0)==34 && pickStageMask(1)==0 && !startPickPlace(0));
+    const char* stages[]={"APPROACH","SRC","GRIP","LIFT","TRANSFER","DST","RELEASE","RETREAT"};
+    for(uint8_t i=0;i<8;++i) {
+        Pose p=commandedPose(); p.angles[Gripper]=i<2 || i>=6?80:30;
+        CHECK(requestPose(p) && applyPendingPose());
+        send(std::string("PICK SET A ")+stages[i]); CHECK(!isMotionBusy());
+    }
+    CHECK(pickStageMask(0)==255 && pickCalibrationValid(0));
+    send("PICK SPEED A 3 40"); send("PICK WAIT A GRIP 200");
+    CHECK(pickStageSpeed(0,2)==40 && pickStageDwell(0,2)==200);
+    for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
+        Serial.output.clear(); send(bad); CHECK(contains("INVALID"));
+    }
+    // Saving freezes manual/business events but continues the PC loop.
+    servoWrites.clear(); send("PICK SAVE"); CHECK(isPickSaving() && isArmHeld());
+    send("GO"); send("BTN 2"); CHECK(isArmHeld() && !isRecording());
+    CHECK(!startRecording(simulatedTime)); CHECK(!beginTeach());
+    for(int i=0;i<200 && isPickSaving();++i) advance();
+    CHECK(!isPickSaving() && contains("PICK SAVED; HELD") && servoWrites.empty());
+    uint8_t baseline[1024]; memcpy(baseline,EEPROM.bytes,1024);
+    send("PICK CLEAR A"); CHECK(pickStageMask(0)==0); send("PICK LOAD"); CHECK(pickStageMask(0)==255);
+    // Real boot has a pending startup frame. Valid data must still restore.
+    initializeArm(); CHECK(hasPendingPose()); initializeApplication();
+    CHECK(pickStageMask(0)==255 && pickStageSpeed(0,2)==40);
+    CHECK(applyPendingPose()); holdArm();
+    // Every interrupted write boundary retains the old committed slot.
+    for(int cut=0;cut<=156;++cut) {
+        memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
+        send("PICK CLEAR A"); send("PICK SET B SRC"); CHECK(savePickConfiguration());
+        for(int i=0;i<cut;++i) updatePickPersistence();
+        initializePickConfiguration();
+        CHECK(pickStageMask(0)==(cut==156?0:255));
+        CHECK(pickStageMask(1)==(cut==156?2:0));
+        CHECK(pickStageMask(2)==0);
+    }
+    // Corrupt any byte of the sole slot: reject, including version, sequence,
+    // CRC, commit marker, masks, angles, speed and timing.
+    for(int byte=0;byte<155;++byte) {
+        memcpy(EEPROM.bytes,baseline,1024); EEPROM.bytes[byte]^=1;
+        initializePickConfiguration(); CHECK(pickStageMask(0)==0 && !loadPickConfiguration());
+    }
+    memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
+    send("PICK SET B SRC"); CHECK(savePickConfiguration());
+    while(isPickSaving()) updatePickPersistence();
+    uint8_t twoSlots[1024]; memcpy(twoSlots,EEPROM.bytes,1024);
+    for(int byte=155;byte<310;++byte) {
+        memcpy(EEPROM.bytes,twoSlots,1024); EEPROM.bytes[byte]^=1;
+        initializePickConfiguration(); CHECK(pickStageMask(0)==255 && pickStageMask(1)==0);
+    }
+    memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
+    send("GO"); CHECK(startPickPlace(0)); servoWrites.clear();
+    send("PICK CLEAR A"); CHECK(pickStageMask(0)==255 && lastControlError()==ControlError::Busy);
+    finishTask(); CHECK(!isArmHeld());
+    // All phases preflight before first movement, even corrupt runtime edits.
+    EEPROM.bytes[310+1+7*6+1]=20; EEPROM.bytes[310+1+7*6+2]=127;
+    servoWrites.clear(); CHECK(startPickPlace(0)); finishTask();
+    CHECK(isArmHeld() && servoWrites.empty() && lastControlError()==ControlError::Unsafe);
+    clearSyntheticPickPrograms(); initializePickConfiguration();
 }
 void testManualFrameOwnership() {
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
@@ -518,6 +587,14 @@ void prepareTeachFive() {
 }
 void testTeachAndDraw() {
     fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
+    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("UNDO");
+    CHECK(teachPointCount()==4); TeachPoint undone;
+    CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,95);
+    CHECK(fabs(undone.x-surviving.x)<0.001f);
+    send("MARK"); CHECK(teachPointCount()==5 && getTeachPoint(4,undone));
+    Point3D readded=solveFK3D(100,123,95); CHECK(fabs(undone.x-readded.x)<0.001f);
+    send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("BUSY"));
+    finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("NO_DATA"));
     prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
     send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
@@ -588,6 +665,6 @@ int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testNanoInputAndLink(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
-    testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
+    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

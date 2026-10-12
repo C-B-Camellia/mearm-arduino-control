@@ -129,7 +129,9 @@ bool sampleGoal(uint16_t index,Pose& pose) {
         pose=index<=hardwareConfig.homeViaCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
     }
     if(task.status.kind==TaskKind::PickPlace) {
-        uint16_t dwell; return getPickStage(task.objectIndex,index-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
+        uint8_t homeCount=hardwareConfig.homeViaCount+1;
+        if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
+        uint16_t dwell; return getPickStage(task.objectIndex,index-homeCount-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
     }
     if(task.status.kind==TaskKind::Playback) {
         RecordedFrame frame; if(!getRecordedFrame(index-1,frame)) return rejectControl(ControlError::NoData);
@@ -162,7 +164,7 @@ void finish(bool failed=false) {
     syncManualTarget(millis());
 }
 bool begin(TaskKind kind,uint16_t count) {
-    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
+    if(isMotionBusy() || hasPendingPose() || isRecording() || isPickSaving()) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
     task=MotionTask{}; task.status.kind=kind; task.status.state=MotionState::Validating;
     task.status.totalWaypoints=count; task.origin=commandedPose(); task.segmentStart=task.origin;
@@ -234,6 +236,9 @@ __attribute__((noinline)) void execute(uint32_t now) {
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
         float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
+        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace) speed=DEFAULT_MOVE_SPEED;
+        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
+            speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
         task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
         if(isDrawingKind(task.status.kind)) {
             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
@@ -292,9 +297,8 @@ void updateMotion(uint32_t now,bool controlDue) {
         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
             task.elapsed=0; task.lastUpdate=now; Serial.println(F("PLAY START"));
         }
-        if(task.status.kind==TaskKind::PickPlace) {
-            Pose unused; getPickStage(task.objectIndex,task.status.completedWaypoints-1,unused,task.dwellRemaining);
-        }
+        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
+            task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);
         if(task.status.completedWaypoints==task.status.totalWaypoints && !task.dwellRemaining) { finish(); return; }
         if(task.dwellRemaining) { task.lastUpdate=now; return; }
     }
@@ -321,8 +325,8 @@ bool startHome() {
     return begin(TaskKind::Home,hardwareConfig.homeViaCount+1);
 }
 bool startPickPlace(uint8_t object) {
-    if(!pickCalibrationValid(object)) return rejectControl(ControlError::Uncalibrated);
-    if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT)) return false;
+    if(!pickCalibrationValid(object) || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
+    if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT+hardwareConfig.homeViaCount+1)) return false;
     task.objectIndex=object; return true;
 }
 bool startPlayback() {

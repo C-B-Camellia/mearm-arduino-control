@@ -5,6 +5,7 @@
 #include "motion.h"
 #include "recording.h"
 #include "control_error.h"
+#include "pick_place.h"
 #include <math.h>
 namespace {
 TeachPoint points[TEACH_POINT_COUNT];
@@ -12,7 +13,7 @@ uint8_t order[TEACH_POINT_COUNT]={0,1,2,3,4},count=0;
 TeachSettings settings{};
 bool active=false,marking=false;
 bool mutableNow() {
-    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
+    if(isMotionBusy() || hasPendingPose() || isRecording() || isPickSaving()) return rejectControl(ControlError::Busy);
     return true;
 }
 Point3D currentPoint() {
@@ -65,6 +66,15 @@ bool markTeachPoint() {
 bool clearTeachPoints() {
     if(!mutableNow()) return false;
     count=0; marking=false; for(uint8_t i=0;i<5;++i) order[i]=i; return true;
+}
+bool undoTeachPoint() {
+    if(!mutableNow()) return false;
+    if(!markingActive() || !count) return rejectControl(ControlError::NoData);
+    --count;
+    uint8_t out=0;
+    for(uint8_t i=0;i<=count;++i) if(order[i]!=count) order[out++]=order[i];
+    order[count]=count;
+    return true;
 }
 bool exitTeach() {
     if(!mutableNow()) return false;

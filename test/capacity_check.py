@@ -33,14 +33,9 @@ text = text.replace("HardwareConfig hardwareConfig{};", """HardwareConfig hardwa
     {{{90,115,100,50}},{{90,120,95,50}}}
 };""")
 config.write_text(text, encoding="utf-8")
-pick = work / "src" / "pick_place.cpp"
-text = pick.read_text(encoding="utf-8")
-assert text.count("const PickProgram programs[3] PROGMEM={};")==1, 'Synthetic pick injection marker changed; refusing partial target'
-program = """{true, {{90,120,95,80},{90,115,95,80},{90,115,95,30},
-{90,120,95,30},{110,120,95,30},{110,115,95,30},
-{110,115,95,80},{110,120,95,80}}, {100,100,200,100,100,100,200,100}}"""
-text = text.replace("const PickProgram programs[3] PROGMEM={};", "const PickProgram programs[3] PROGMEM={" + ",".join([program]*3) + "};")
-pick.write_text(text, encoding="utf-8")
+# Runtime EEPROM configuration keeps every pick path linked; never inject or
+# publish synthetic EEPROM poses into a production image.
+assert 'executePickCommand' in (work/'src/pick_place.cpp').read_text(encoding='utf-8')
 print("CAPACITY TEST ONLY: all measured data and UART pins are synthetic.", flush=True)
 pio=Path(sys.executable).with_name('pio.exe')
 result=subprocess.run([str(pio) if pio.exists() else 'pio', "run", "--project-dir", str(work), "-e", "uno"],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace')

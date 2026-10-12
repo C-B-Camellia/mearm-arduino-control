@@ -12,6 +12,7 @@
 #include "recording.h"
 #include "teaching.h"
 #include "serial_format.h"
+#include "pick_place.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,8 +68,9 @@ void printHelp() {
     Serial.println(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
         "MODE JOINT|CART; O/S H/L; SPEED\r\n"
         "HOLD GO CANCEL STATUS HELP; REC PLAY HOME A B C BTN 1..4\r\n"
-        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR ORDER\r\n"
+        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR UNDO ORDER\r\n"
         "DRAW POLY/CURVE/LINE/SHAPE N/TRIANGLE/Z/V"));
+    Serial.println(F("PICK SET/SHOW/SAVE/LOAD/CLEAR/SPEED/WAIT A..C 1..8 (SRC=2 DST=6)"));
 
 }
 bool angleTriple(char* line) {
@@ -146,7 +148,7 @@ void executeLine(char* line) {
         else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:hardwareConfig.gripClosed; result(startJointMove(p)); }
     }
     else if(op==12) { if(!pauseMotion(millis())) holdArm(); result(true); }
-    else if(op==13) { if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
+    else if(op==13) { if(isPickSaving()) { result(rejectControl(ControlError::Busy)); return; } if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
     else if(op==14) {
         if(isRecording()) clearRecording();
         if(drawingTaskActive()) result(cancelAndReturnHome());

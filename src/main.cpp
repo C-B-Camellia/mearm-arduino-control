@@ -9,6 +9,7 @@
 #include "recording.h"
 #include "app_controller.h"
 #include "button_link.h"
+#include "pick_place.h"
 
 namespace {
 uint32_t lastControlTime = 0;
@@ -33,6 +34,7 @@ void loop()
 {
     pollSerial();
     pollButtonLink();
+    updatePickPersistence();
 
     // One control clock, one complete output frame; missed ticks never burst.
     uint32_t now = millis();

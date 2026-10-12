@@ -20,7 +20,13 @@ struct HardwareConfig {
     uint8_t homeViaCount;
     Pose homeVia[2];
 };
+// Hardware calibration is a build-time configuration. EEPROM stores taught
+// pick poses only; it must never mutate or bypass these hardware limits.
+#ifdef MEARM_NATIVE_TEST
 extern HardwareConfig hardwareConfig;
+#else
+extern const HardwareConfig hardwareConfig;
+#endif
 void configureCalibratedJoints();
 bool cartesianCalibrationValid();
 bool gripperCalibrationValid();
