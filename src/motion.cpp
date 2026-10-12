@@ -71,7 +71,7 @@ void validateNextWaypoint()
     if (index == task.path.steps) {
         if (task.status.kind == TaskKind::LinePreview) {
             Serial.println(F("LINE VALID"));
-            cancelMotion();
+            task = LineTask{};
         }
         else {
             Serial.println(F("PATH VALID"));
@@ -90,7 +90,7 @@ void executeNextWaypoint(uint32_t now)
     // Preserve the complete delay after the final waypoint too.
     if (task.status.completedWaypoints == task.path.steps) {
         Serial.println(F("RUNLINE DONE"));
-        cancelMotion();
+        task = LineTask{};
         return;
     }
 
@@ -120,7 +120,7 @@ void executeNextWaypoint(uint32_t now)
     }
 
     task.status.completedWaypoints = index;
-    task.waitStartedAt = millis();
+    task.waitStartedAt = now;
     task.remainingWait = WAYPOINT_DELAY_MS;
 }
 }

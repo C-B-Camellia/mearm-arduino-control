@@ -95,13 +95,12 @@ bool isSafePose(const Pose& pose)
 bool requestPose(const Pose& pose)
 {
     Pose output;
-    if (!prepareOutputPose(pose, output)) {
+    if (held || !prepareOutputPose(pose, output)) {
         return false;
     }
     for (uint8_t i = 0; i < JointCount; ++i) {
         joints[i].goalAngle = pose.angles[i];
     }
-    held = false;
     posePending = true;
     return true;
 }
@@ -147,7 +146,6 @@ bool applyPendingPose()
     if (!applyPoseImmediate(goalPose())) {
         return false;
     }
-    held = true;
     return true;
 }
 
@@ -173,5 +171,4 @@ void holdArm()
 void resumeArm()
 {
     held = false;
-    posePending = true;
 }
