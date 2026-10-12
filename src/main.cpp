@@ -6,6 +6,9 @@
 #include "motion.h"
 #include "manual_control.h"
 #include "control_error.h"
+#include "recording.h"
+#include "app_controller.h"
+#include "button_link.h"
 
 namespace {
 uint32_t lastControlTime = 0;
@@ -15,6 +18,7 @@ void setup()
 {
     Serial.begin(SERIAL_BAUD_RATE);
     initializeArm();
+    initializeApplication(); initializeButtonLink();
 
     // Hobby servos do not report actual position. Start from a safe physical pose.
     delay(STARTUP_DELAY_MS);
@@ -31,6 +35,7 @@ void setup()
 void loop()
 {
     pollSerial();
+    pollButtonLink();
 
     // Future input hooks: joystick/manual requests and external button messages.
     // They must respect isMotionBusy() and submit poses through arm.h.
@@ -44,6 +49,7 @@ void loop()
         if(!isMotionBusy()) updateManualControl(now);
         if(!applyPendingPose()) { rejectControl(ControlError::Unsafe); cancelMotion(); printControlError(); }
     }
+    updateRecording(now,commandedPose());
 
     // Future recording hook: sample the commanded pose after motion updates.
 }

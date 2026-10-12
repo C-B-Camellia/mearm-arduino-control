@@ -5,6 +5,8 @@
 #include "control_error.h"
 #include "manual_control.h"
 #include "hardware_config.h"
+#include "recording.h"
+#include "pick_place.h"
 #include <math.h>
 
 namespace {
@@ -15,6 +17,8 @@ struct MotionTask {
     Point3D cartStart,cartEnd;
     uint32_t elapsed,lastUpdate,duration;
     uint16_t validationSubstep,validationSubsteps;
+    uint16_t dwellRemaining;
+    uint8_t objectIndex;
     bool segmentLoaded,endpointQueued;
 };
 MotionTask task{};
@@ -28,6 +32,17 @@ bool sampleGoal(uint16_t index,Pose& pose) {
     pose=task.origin;
     float t=static_cast<float>(index)/task.status.totalWaypoints;
     if(task.status.kind==TaskKind::JointMove) { pose=task.target; return true; }
+    if(task.status.kind==TaskKind::Home) {
+        pose=index<=hardwareConfig.homeViaCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
+    }
+    if(task.status.kind==TaskKind::PickPlace) {
+        uint16_t dwell; return getPickStage(task.objectIndex,index-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
+    }
+    if(task.status.kind==TaskKind::Playback) {
+        RecordedFrame frame; if(!getRecordedFrame(index-1,frame)) return rejectControl(ControlError::NoData);
+        for(uint8_t i=0;i<JointCount;++i) pose.angles[i]=frame.angles[i];
+        return true;
+    }
     Point3D p={task.cartStart.x+(task.cartEnd.x-task.cartStart.x)*t,
                task.cartStart.y+(task.cartEnd.y-task.cartStart.y)*t,
                task.cartStart.z+(task.cartEnd.z-task.cartStart.z)*t};
@@ -53,7 +68,7 @@ void finish(bool failed=false) {
     syncManualTarget(millis());
 }
 bool begin(TaskKind kind,uint16_t count) {
-    if(isMotionBusy() || hasPendingPose()) return rejectControl(ControlError::Busy);
+    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
     task=MotionTask{}; task.status.kind=kind; task.status.state=MotionState::Validating;
     task.status.totalWaypoints=count; task.origin=commandedPose(); task.segmentStart=task.origin;
@@ -87,9 +102,14 @@ void execute(uint32_t now) {
         task.segmentStart=commandedPose();
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
+        task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/automaticSpeed())));
+        if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) {
+            RecordedFrame a,b;
+            getRecordedFrame(task.status.completedWaypoints-1,a); getRecordedFrame(task.status.completedWaypoints,b);
+            task.duration=max(task.duration,static_cast<uint32_t>(b.timeMs-a.timeMs));
+        }
     }
     uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
-    task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/automaticSpeed())));
     task.elapsed=min(task.duration,task.elapsed+dt);
     float t=static_cast<float>(task.elapsed)/task.duration;
     Pose p=interpolate(task.segmentStart,task.segmentTarget,t);
@@ -126,9 +146,21 @@ bool startCartesianMove(const Point3D& target) {
 void updateMotion(uint32_t now,bool controlDue) {
     if(task.status.state==MotionState::Validating) { validateOne(); return; }
     if(task.status.state!=MotionState::Running) return;
+    if(task.dwellRemaining) {
+        if(controlDue) {
+            uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
+            task.dwellRemaining=dt>=task.dwellRemaining?0:task.dwellRemaining-dt;
+        }
+        if(task.dwellRemaining) return;
+        if(task.status.completedWaypoints==task.status.totalWaypoints) { finish(); return; }
+    }
     if(task.endpointQueued && !hasPendingPose()) {
         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
-        if(task.status.completedWaypoints==task.status.totalWaypoints) { finish(); return; }
+        if(task.status.kind==TaskKind::PickPlace) {
+            Pose unused; getPickStage(task.objectIndex,task.status.completedWaypoints-1,unused,task.dwellRemaining);
+        }
+        if(task.status.completedWaypoints==task.status.totalWaypoints && !task.dwellRemaining) { finish(); return; }
+        if(task.dwellRemaining) { task.lastUpdate=now; return; }
     }
     if(controlDue) execute(now);
 }
@@ -144,3 +176,23 @@ bool resumeMotion(uint32_t now) {
     return true;
 }
 void cancelMotion() { task=MotionTask{}; holdArm(); syncManualTarget(millis()); }
+bool startHome() {
+    if(!homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
+    return begin(TaskKind::Home,hardwareConfig.homeViaCount+1);
+}
+bool startPickPlace(uint8_t object) {
+    if(!pickCalibrationValid(object)) return rejectControl(ControlError::Uncalibrated);
+    if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT)) return false;
+    task.objectIndex=object; return true;
+}
+bool startPlayback() {
+    if(!hasRecording()) return rejectControl(ControlError::NoData);
+    return begin(TaskKind::Playback,recordingStatus().count);
+}
+bool cancelAndReturnHome() {
+    cancelMotion();
+    if(!homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
+    resumeArm();
+    if(!startHome()) { holdArm(); return false; }
+    return true;
+}

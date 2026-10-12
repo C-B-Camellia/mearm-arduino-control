@@ -7,6 +7,8 @@
 #include "hardware_config.h"
 #include "control_settings.h"
 #include "control_error.h"
+#include "app_controller.h"
+#include "recording.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,12 +45,14 @@ void printStatus() {
     Serial.print(F(" task=")); Serial.print(static_cast<int>(s.kind)); Serial.print(F(" phase=")); Serial.print(static_cast<int>(s.state));
     Serial.print(F(" move=")); Serial.print(s.completedWaypoints); Serial.print('/'); Serial.print(s.totalWaypoints);
     Serial.print(F(" held=")); Serial.print(isArmHeld()); Serial.print(F(" cal=")); Serial.println(cartesianCalibrationValid());
+    printApplicationStatus();
 }
 void printHelp() {
     Serial.println(F("IK/XY/LINE/RUNLINE x z; J0..J3 deg; XYZ/IK3 x y z"));
     Serial.println(F("x90,y120,z95 = J0,J1,J2 angles (atomic)"));
     Serial.println(F("MODE JOINT|CART; O/S; H/L joystick scale 0.75..1.5"));
     Serial.println(F("SPEED 5..90 automatic deg/s; HOLD/GO/CANCEL; STATUS/HELP"));
+    Serial.println(F("A/B/C; REC [START|STOP]; PLAY; HOME; BTN 1..4"));
 }
 bool angleTriple(char* line) {
     Pose pose=commandedPose(); uint8_t seen=0; char* save=nullptr;
@@ -74,6 +78,8 @@ void executeLine(char* line) {
         if(count==7) { invalid(); return; } tokens[count++]=token;
     }
     if(!count) return;
+    bool appSuccess;
+    if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
     float v[3]={}; bool numbers=count>=2 && count<=4;
     for(uint8_t i=1;i<count && i<=3;++i) if(!parseNumber(tokens[i],v[i-1])) numbers=false;
     const char* c=tokens[0];
@@ -123,7 +129,7 @@ void executeLine(char* line) {
     }
     else if(!strcmp(c,"HOLD")) { if(!pauseMotion(millis())) holdArm(); result(true); }
     else if(!strcmp(c,"GO")) { if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
-    else if(!strcmp(c,"CANCEL")) { cancelMotion(); result(true); }
+    else if(!strcmp(c,"CANCEL")) { if(isRecording()) clearRecording(); cancelMotion(); result(true); }
     else if(!strcmp(c,"STATUS")) printStatus();
     else if(!strcmp(c,"HELP")) printHelp();
     else invalid();

@@ -7,6 +7,7 @@
 #include "hardware_config.h"
 #include "control_settings.h"
 #include "control_error.h"
+#include "recording.h"
 #include <math.h>
 
 namespace {
@@ -28,7 +29,7 @@ ControlMode getControlMode() {
 bool setControlMode(ControlMode newMode) {
     if(newMode!=ControlMode::Joint && newMode!=ControlMode::Cartesian) return rejectControl(ControlError::Invalid);
     if(newMode==currentMode) return true;
-    if(isMotionBusy() || hasPendingPose() || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Busy);
+    if(isMotionBusy() || isRecording() || hasPendingPose() || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
     if(newMode==ControlMode::Cartesian && !cartesianCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     currentMode=newMode; syncManualTarget(millis()); clearControlError(); return true;

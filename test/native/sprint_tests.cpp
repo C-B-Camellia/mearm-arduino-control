@@ -9,6 +9,10 @@
 #include "hardware_config.h"
 #include "control_settings.h"
 #include "control_error.h"
+#include "recording.h"
+#include "pick_place.h"
+#include "app_controller.h"
+#include "button_link.h"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -40,7 +44,7 @@ void send(const std::string& s) {
 void fresh() {
     Serial.input="\n"; pollSerial(); cancelMotion();
     for (uint8_t i=0;i<JointCount;++i) joints[i]=original[i];
-    hardwareConfig=HardwareConfig{}; resetControlSettings();
+    hardwareConfig=HardwareConfig{}; resetControlSettings(); clearSyntheticPickPrograms();
     analogValues[0]=506; analogValues[1]=519; analogValues[2]=515; analogValues[3]=519;
     simulatedTime=0; servoWrites.clear(); attachedPins.clear(); delayCalls.clear();
     Serial.input.clear(); Serial.output.clear(); setup(); advance(); advance();
@@ -166,9 +170,53 @@ void testIndependentSpeedAndClock() {
     advance(1000); CHECK(servoWrites.size()==count); send("GO"); finishTask();
     CHECK(commandedPose().angles[Shoulder]==100); checkWritesSafe();
 }
+void recordMovingSession(uint32_t duration) {
+    send("REC START"); CHECK(isRecording());
+    for(uint32_t t=20;t<=duration;t+=20) { analogValues[1]=(t%2000<1000)?700:300; advance(); }
+    analogValues[1]=519; send("REC STOP");
+}
+void testRecordingAndButtons() {
+    fresh(); send("PLAY"); CHECK(contains("NO_DATA"));
+    send("BTN 2"); CHECK(isRecording()); runFor(1000); send("BTN 2");
+    CHECK(!hasRecording() && contains("TOO_SHORT"));
+    fresh(); send("REC START"); runFor(11000); send("REC STOP");
+    CHECK(!hasRecording() && contains("NO_MOVEMENT"));
+    fresh(); recordMovingSession(11200); CHECK(hasRecording());
+    CHECK(recordingStatus().duration>10000 && recordingStatus().count<=RECORD_CAPACITY);
+    RecordedFrame first,last; CHECK(getRecordedFrame(0,first));
+    CHECK(getRecordedFrame(recordingStatus().count-1,last));
+    CHECK(first.timeMs==0 && last.timeMs==11200);
+    servoWrites.clear(); send("BTN 3"); CHECK(isMotionBusy());
+    send("HOLD"); size_t count=servoWrites.size(); runFor(500); CHECK(count==servoWrites.size());
+    send("GO"); finishTask(); CHECK(commandedPose().angles[Shoulder]==last.angles[Shoulder]); checkWritesSafe();
+    fresh(); send("REC START"); CHECK(!startJointMove(commandedPose()));
+    for(uint32_t t=20;t<=17000;t+=20) { analogValues[1]=(t%2000<1000)?700:300; advance(); }
+    CHECK(!isRecording() && hasRecording() && recordingStatus().count==RECORD_CAPACITY);
+    fresh(); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
+    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
+    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('9',simulatedTime); feedButtonByte('\n',simulatedTime);
+    CHECK(contains("INVALID")); CHECK(!buttonLinkConfigured());
+    send("BTN 4"); CHECK(isRecording() && contains("BUSY"));
+}
+void testHomeAndPick() {
+    fresh(); send("HOME"); CHECK(contains("UNCALIBRATED") && !isMotionBusy() && servoWrites.empty());
+    send("GO"); send("A"); CHECK(contains("UNCALIBRATED") && servoWrites.empty());
+    syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
+    initializeArm(); advance(); CHECK(attachedPins.size()==6); servoWrites.clear();
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+    hardwareConfig.home.angles[Shoulder]=110;
+    CHECK(startHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
+    Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; }
+    setSyntheticPickProgram(0,poses); setSyntheticPickProgram(1,poses); setSyntheticPickProgram(2,poses);
+    CHECK(onButtonPressed(1)); CHECK(!onButtonPressed(1)); finishTask();
+    CHECK(onButtonPressed(1)); finishTask(); CHECK(onButtonPressed(1)); finishTask();
+    CHECK(commandedPose().angles[Shoulder]==115);
+    CHECK(cancelAndReturnHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
+    testRecordingAndButtons(); testHomeAndPick();
     std::cout << "PASS: " << assertions << " checks\n";
 }

@@ -9,7 +9,7 @@ $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $buildDirectory = Join-Path $projectRoot '.pio/native-tests'
 New-Item -ItemType Directory -Force -Path $buildDirectory | Out-Null
 
-$arguments = @('-std=c++11', '-O2', '-Wall', '-Wextra', '-Werror',
+$arguments = @('-std=c++11', '-O2', '-Wall', '-Wextra', '-Werror', '-DMEARM_NATIVE_TEST',
     '-I', $PSScriptRoot, '-I', (Join-Path $projectRoot 'include'))
 if ($LegacySource) {
     $resolvedSource = (Resolve-Path -LiteralPath $LegacySource).Path.Replace('\', '/')
