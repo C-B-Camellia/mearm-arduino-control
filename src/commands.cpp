@@ -153,7 +153,8 @@ void executeLine(char* line) {
     else invalid();
 }
 }
-void pollSerial() {
+// Release parser/diagnostic temporaries before the motion tick and its IK calls.
+__attribute__((noinline)) void pollSerial() {
     for(uint8_t consumed=0;consumed<SERIAL_BYTES_PER_LOOP && Serial.available()>0;++consumed) {
         char c=static_cast<char>(Serial.read());
         if(c=='\r') continue;

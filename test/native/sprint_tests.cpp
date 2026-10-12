@@ -274,6 +274,11 @@ void testCurveIndependentReference() {
         TeachPoint reference=blendPoint(b1,b2,(t-t1)/(t2-t1)),actual;
         CHECK(centripetalSample(a,b,c,d,u,actual)); CHECK(pointDistance(reference,actual)<0.0001f);
     }
+    TeachPoint expected,scratch,again;
+    CHECK(centripetalSample(a,b,c,d,0.4f,expected));
+    CHECK(centripetalSample(d,c,b,a,0.9f,scratch));
+    CHECK(centripetalSample(a,b,c,d,0.4f,again));
+    CHECK(expected.x==again.x && expected.y==again.y); // No persistent curve scratch.
 }
 void prepareTeachFive() {
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();

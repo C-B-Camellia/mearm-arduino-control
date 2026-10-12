@@ -13,7 +13,9 @@ bool shapeVertex(ShapeId s,uint8_t i,const TeachPoint& lo,const TeachPoint& hi,T
     }
     p={lo.x+x*(hi.x-lo.x),lo.y+y*(hi.y-lo.y)}; return true;
 }
-bool centripetalSample(const TeachPoint& p0,const TeachPoint& p1,const TeachPoint& p2,const TeachPoint& p3,float t,TeachPoint& p) {
+// Keep curve arithmetic scratch off the caller's persistent IK stack frame.
+// The formula/operation order is unchanged; this frame returns before IK starts.
+__attribute__((noinline)) bool centripetalSample(const TeachPoint& p0,const TeachPoint& p1,const TeachPoint& p2,const TeachPoint& p3,float t,TeachPoint& p) {
     if(!isfinite(t) || t<0 || t>1) return false;
     float a=sqrtf(pointDistance(p0,p1)),b=sqrtf(pointDistance(p1,p2)),c=sqrtf(pointDistance(p2,p3));
     if(!isfinite(a) || !isfinite(b) || !isfinite(c) || a<0.001f || b<0.001f || c<0.001f) return false;
