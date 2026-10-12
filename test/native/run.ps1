@@ -1,6 +1,7 @@
 param(
     [string] $Compiler = 'g++',
-    [string] $LegacySource = ''
+    [string] $LegacySource = '',
+    [string] $Suite = 'sprint_tests.cpp'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,7 +17,7 @@ if ($LegacySource) {
     [IO.File]::WriteAllText((Join-Path $buildDirectory 'legacy_reference.h'), $reference)
     $arguments += @('-DLEGACY_REFERENCE', '-I', $buildDirectory, '-Wno-unused-variable')
 }
-$arguments += Join-Path $PSScriptRoot 'test_main.cpp'
+$arguments += Join-Path $PSScriptRoot $Suite
 $arguments += Get-ChildItem (Join-Path $projectRoot 'src') -Filter '*.cpp' | ForEach-Object { $_.FullName }
 $executable = Join-Path $buildDirectory 'controller-tests.exe'
 $arguments += @('-o', $executable)

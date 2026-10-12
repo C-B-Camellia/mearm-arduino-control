@@ -40,6 +40,7 @@ Pose commandedPose();
 Pose goalPose();
 bool isSafePlanarPose(float shoulderAngle, float elbowAngle);
 bool isSafePose(const Pose& pose);
+bool prepareOutputPose(const Pose& candidate, Pose& output);
 
 // Queue ordinary motion, or send a validated trajectory waypoint immediately.
 bool requestPose(const Pose& pose);

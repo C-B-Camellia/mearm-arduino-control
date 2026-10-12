@@ -40,7 +40,14 @@ bool canApplyPose(const Pose& pose)
 
 void initializeArm()
 {
+    Pose output;
+    if (!prepareOutputPose(commandedPose(), output)) {
+        held = true;
+        posePending = false;
+        return;
+    }
     for (uint8_t i = 0; i < JointCount; ++i) {
+        joints[i].commandedAngle = output.angles[i];
         if (joints[i].outputEnabled) {
             servos[i].attach(joints[i].servoPin);
             servos[i].write(static_cast<int>(joints[i].commandedAngle));
@@ -87,7 +94,8 @@ bool isSafePose(const Pose& pose)
 
 bool requestPose(const Pose& pose)
 {
-    if (!canApplyPose(pose)) {
+    Pose output;
+    if (!prepareOutputPose(pose, output)) {
         return false;
     }
     for (uint8_t i = 0; i < JointCount; ++i) {
@@ -100,21 +108,34 @@ bool requestPose(const Pose& pose)
 
 bool applyPoseImmediate(const Pose& pose)
 {
-    if (!canApplyPose(pose)) {
+    Pose output;
+    if (!prepareOutputPose(pose, output)) {
         return false;
     }
 
     // Update both software angles before sending either servo command.
     for (uint8_t i = 0; i < JointCount; ++i) {
-        joints[i].commandedAngle = pose.angles[i];
+        joints[i].commandedAngle = output.angles[i];
         joints[i].goalAngle = pose.angles[i];
     }
     for (uint8_t i = 0; i < JointCount; ++i) {
         if (joints[i].outputEnabled) {
-            servos[i].write(static_cast<int>(pose.angles[i]));
+            servos[i].write(static_cast<int>(output.angles[i]));
         }
     }
     posePending = false;
+    return true;
+}
+
+bool prepareOutputPose(const Pose& candidate, Pose& output)
+{
+    if (!canApplyPose(candidate)) return false;
+    Pose quantized;
+    for (uint8_t i = 0; i < JointCount; ++i) {
+        quantized.angles[i] = static_cast<int>(candidate.angles[i]);
+    }
+    if (!canApplyPose(quantized)) return false;
+    output = quantized;
     return true;
 }
 

@@ -33,6 +33,8 @@ extern uint32_t simulatedTime;
 extern std::vector<ServoWrite> servoWrites;
 extern std::vector<int> attachedPins;
 extern std::vector<uint32_t> delayCalls;
+extern int analogValues[4];
+inline int analogRead(int pin) { return analogValues[pin - A0]; }
 
 inline uint32_t millis() { return simulatedTime; }
 inline void delay(uint32_t duration)

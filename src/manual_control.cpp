@@ -22,5 +22,5 @@ bool setControlMode(ControlMode newMode) {
 }
 
 void updateManualControl(uint32_t now) {
-    
+    (void)now;
 }
