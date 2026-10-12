@@ -140,6 +140,18 @@ void testHoldAndJoystick() {
     }
     analogValues[0]=0; CHECK(readJoysticks().lx==-2);
     analogValues[0]=1023; CHECK(readJoysticks().lx==2);
+    const int centers[4]={506,519,515,519};
+    const int signs[4]={1,-1,1,1};
+    for(uint8_t channel=0;channel<4;++channel) {
+        for(int offset:{-30,-21,-20,0,20,21,30}) {
+            for(uint8_t i=0;i<4;++i) analogValues[i]=centers[i];
+            analogValues[channel]=centers[channel]+offset;
+            JoystickInput input=readJoysticks(); const int actual[4]={input.lx,input.ly,input.rx,input.ry};
+            for(uint8_t i=0;i<4;++i) CHECK(actual[i]==(i!=channel || abs(offset)<=20?0:(offset<0?-signs[i]:signs[i])));
+        }
+        analogValues[channel]=0; JoystickInput low=readJoysticks(); const int lo[4]={low.lx,low.ly,low.rx,low.ry}; CHECK(lo[channel]==-2*signs[channel]);
+        analogValues[channel]=1023; JoystickInput high=readJoysticks(); const int hi[4]={high.lx,high.ly,high.rx,high.ry}; CHECK(hi[channel]==2*signs[channel]);
+    }
 }
 void syntheticCalibration() {
     // Test-only values. They are never compiled into hardware_config.cpp.
