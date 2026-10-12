@@ -245,6 +245,24 @@ void testCurveSampler() {
         for(uint8_t i=0;i<shapeVertexCount(shape);++i) { CHECK(shapeVertex(shape,i,{0,0},{10,10},out)); CHECK(out.x>=0 && out.x<=10 && out.y>=0 && out.y<=10); }
     }
 }
+void testPackedPickCommands() {
+    fresh(); syntheticCalibration();
+    hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
+    Pose poses[PICK_STAGE_COUNT];
+    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110.75f+i; }
+    setSyntheticPickProgram(0,poses); CHECK(pickCalibrationValid(0));
+    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) {
+        Pose unpacked; uint16_t dwell;
+        CHECK(getPickStage(0,i,unpacked,dwell) && dwell==100);
+        for(uint8_t j=0;j<JointCount;++j) CHECK(unpacked.angles[j]==static_cast<int>(poses[i].angles[j]));
+        Pose safe; CHECK(prepareOutputPose(unpacked,safe));
+    }
+    poses[7].angles[Shoulder]=20.9f; poses[7].angles[Elbow]=127.1f;
+    setSyntheticPickProgram(0,poses); CHECK(!pickCalibrationValid(0)); // Float-safe, quantization-unsafe.
+    poses[7].angles[Shoulder]=std::numeric_limits<float>::quiet_NaN();
+    setSyntheticPickProgram(1,poses); CHECK(!pickCalibrationValid(1));
+    CHECK(servoWrites.empty());
+}
 TeachPoint blendPoint(const TeachPoint& a,const TeachPoint& b,float t) { return {a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t}; }
 void testCurveIndependentReference() {
     TeachPoint a={0,0},b={3,4},c={9,1},d={14,6};
@@ -340,7 +358,7 @@ void testDecimalDiagnostics() {
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
-    testRecordingAndButtons(); testHomeAndPick();
+    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands();
     testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

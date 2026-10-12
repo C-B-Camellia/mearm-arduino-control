@@ -34,9 +34,9 @@ text = text.replace("HardwareConfig hardwareConfig{};", """HardwareConfig hardwa
 config.write_text(text, encoding="utf-8")
 pick = work / "src" / "pick_place.cpp"
 text = pick.read_text(encoding="utf-8")
-program = """{true, {{{90,120,95,80}},{{90,115,95,80}},{{90,115,95,30}},
-{{90,120,95,30}},{{110,120,95,30}},{{110,115,95,30}},
-{{110,115,95,80}},{{110,120,95,80}}}, {100,100,200,100,100,100,200,100}}"""
+program = """{true, {{90,120,95,80},{90,115,95,80},{90,115,95,30},
+{90,120,95,30},{110,120,95,30},{110,115,95,30},
+{110,115,95,80},{110,120,95,80}}, {100,100,200,100,100,100,200,100}}"""
 text = text.replace("const PickProgram programs[3] PROGMEM={};", "const PickProgram programs[3] PROGMEM={" + ",".join([program]*3) + "};")
 pick.write_text(text, encoding="utf-8")
 print("CAPACITY TEST ONLY: all measured data and UART pins are synthetic.", flush=True)
