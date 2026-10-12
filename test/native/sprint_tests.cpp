@@ -125,6 +125,10 @@ void testParser() {
     CHECK(contains("J=120 95") || contains("J=90 120 95 50"));
     Serial.output.clear(); send("HELP");
     for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
+    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==6);
+    for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
+        Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
+    }
 }
 void testHoldAndJoystick() {
     fresh(); CHECK(!isArmHeld()); CHECK(!setControlMode(ControlMode::Cartesian));
@@ -256,6 +260,12 @@ void testCurveSampler() {
     for(ShapeId shape:{ShapeId::N,ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
         for(uint8_t i=0;i<shapeVertexCount(shape);++i) { CHECK(shapeVertex(shape,i,{0,0},{10,10},out)); CHECK(out.x>=0 && out.x<=10 && out.y>=0 && out.y<=10); }
     }
+    const TeachPoint expected[4][4]={{{0,0},{0,10},{10,0},{10,10}},{{0,0},{10,0},{5,10},{0,0}},{{0,10},{10,10},{0,0},{10,0}},{{0,10},{5,0},{10,10},{0,0}}};
+    for(uint8_t shape=0;shape<4;++shape) for(uint8_t i=0;i<shapeVertexCount(static_cast<ShapeId>(shape));++i) {
+        CHECK(shapeVertex(static_cast<ShapeId>(shape),i,{0,0},{10,10},out));
+        CHECK(out.x==expected[shape][i].x && out.y==expected[shape][i].y);
+    }
+    CHECK(!shapeVertex(static_cast<ShapeId>(4),0,{0,0},{10,10},out));
 }
 void testPackedPickCommands() {
     fresh(); syntheticCalibration();

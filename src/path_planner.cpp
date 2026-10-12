@@ -1,16 +1,24 @@
 #include "path_planner.h"
 #include <math.h>
+#ifdef __AVR__
+#include <avr/pgmspace.h>
+#else
+#define PROGMEM
+#endif
+namespace {
+// Exact former shape vertices: low two bits are 2*x, bit 2 is y.
+const uint8_t shapeVertices[4][4] PROGMEM={{0,4,2,6},{0,2,5,0},{4,6,0,2},{4,1,6,0}};
+}
 float pointDistance(const TeachPoint& a,const TeachPoint& b) { float x=a.x-b.x,y=a.y-b.y; return sqrtf(x*x+y*y); }
 uint8_t shapeVertexCount(ShapeId s) { return s==ShapeId::V?3:4; }
 bool shapeVertex(ShapeId s,uint8_t i,const TeachPoint& lo,const TeachPoint& hi,TeachPoint& p) {
-    if(i>=shapeVertexCount(s) || !isfinite(lo.x) || !isfinite(lo.y) || !isfinite(hi.x) || !isfinite(hi.y) || hi.x-lo.x<0.1f || hi.y-lo.y<0.1f) return false;
-    float x=0,y=0;
-    switch(s) {
-    case ShapeId::N: x=i>=2?1:0; y=i%2?1:0; break;
-    case ShapeId::Triangle: x=i==1?1:i==2?0.5f:0; y=i==2?1:0; break;
-    case ShapeId::Z: x=(i==1 || i==3)?1:0; y=i<2?1:0; break;
-    case ShapeId::V: x=i*0.5f; y=i==1?0:1; break;
-    }
+    if(static_cast<uint8_t>(s)>3 || i>=shapeVertexCount(s) || !isfinite(lo.x) || !isfinite(lo.y) || !isfinite(hi.x) || !isfinite(hi.y) || hi.x-lo.x<0.1f || hi.y-lo.y<0.1f) return false;
+#ifdef __AVR__
+    uint8_t vertex=pgm_read_byte(&shapeVertices[static_cast<uint8_t>(s)][i]);
+#else
+    uint8_t vertex=shapeVertices[static_cast<uint8_t>(s)][i];
+#endif
+    float x=(vertex&3)*0.5f,y=vertex>>2;
     p={lo.x+x*(hi.x-lo.x),lo.y+y*(hi.y-lo.y)}; return true;
 }
 // Keep curve arithmetic scratch off the caller's persistent IK stack frame.

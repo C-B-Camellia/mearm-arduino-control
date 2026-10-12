@@ -105,33 +105,34 @@ bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
         success=setTeachOrder(order); return true;
     }
     else if(op==11 && count==2) {
-        const char* sub=t[1];
-        if(commandIs(sub,"START")) action={AppAction::TeachStart,0};
-        else if(commandIs(sub,"DRAWZ")) action={AppAction::DrawHeight,0};
-        else if(commandIs(sub,"TRAVELZ")) action={AppAction::TravelHeight,0};
-        else if(commandIs(sub,"MARKING")) action={AppAction::Marking,0};
-        else if(commandIs(sub,"EXIT")) action={AppAction::TeachExit,0};
-        else { rejectControl(ControlError::Invalid); return true; }
+        switch(commandIndex(t[1],commandNames("START\0DRAWZ\0TRAVELZ\0MARKING\0EXIT\0"))) {
+        case 0: action={AppAction::TeachStart,0}; break;
+        case 1: action={AppAction::DrawHeight,0}; break;
+        case 2: action={AppAction::TravelHeight,0}; break;
+        case 3: action={AppAction::Marking,0}; break;
+        case 4: action={AppAction::TeachExit,0}; break;
+        default: rejectControl(ControlError::Invalid); return true;
+        }
     }
     else if(op==12 && count==2 && commandIs(t[1],"POLY")) action={AppAction::Polyline,0};
     else if(op==12 && count==2 && commandIs(t[1],"CURVE")) action={AppAction::Curve,0};
     else if(op==12 && count==6 && commandIs(t[1],"LINE")) {
         float values[4];
-        for(uint8_t i=0;i<4;++i) if(!parseNumber(t[i+2],values[i])) { rejectControl(ControlError::Invalid); return true; }
+        if(!parseNumbers(t+2,4,values)) { rejectControl(ControlError::Invalid); return true; }
         success=dispatchAction({AppAction::DrawLine,0},values); return true;
     }
     else if(op==12 && (count==3 || count==7) && commandIs(t[1],"SHAPE")) {
-        uint8_t shape=commandIs(t[2],"N")?0:commandIs(t[2],"TRIANGLE")?1:commandIs(t[2],"Z")?2:commandIs(t[2],"V")?3:4;
-        if(shape==4) { rejectControl(ControlError::Invalid); return true; }
+        int shape=commandIndex(t[2],commandNames("N\0TRIANGLE\0Z\0V\0"));
+        if(shape<0) { rejectControl(ControlError::Invalid); return true; }
         float values[4];
         if(count==7) {
-            for(uint8_t i=0;i<4;++i) if(!parseNumber(t[i+3],values[i])) { rejectControl(ControlError::Invalid); return true; }
+            if(!parseNumbers(t+3,4,values)) { rejectControl(ControlError::Invalid); return true; }
         } else {
             TeachPoint a,b;
             if(!getTeachPoint(0,a) || !getTeachPoint(1,b)) { rejectControl(ControlError::NoData); return true; }
             values[0]=min(a.x,b.x); values[1]=min(a.y,b.y); values[2]=max(a.x,b.x); values[3]=max(a.y,b.y);
         }
-        success=dispatchAction({AppAction::DrawShape,shape},values); return true;
+        success=dispatchAction({AppAction::DrawShape,static_cast<uint8_t>(shape)},values); return true;
     }
     else { rejectControl(ControlError::Invalid); return true; }
     success=dispatchAction(action); return true;

@@ -36,6 +36,10 @@ bool parseNumber(const char* text,float& value) {
     if(!digit) return false;
     value=negative?-number:number; return true;
 }
+bool parseNumbers(char* const* text,uint8_t count,float* values) {
+    for(uint8_t i=0;i<count;++i) if(!parseNumber(text[i],values[i])) return false;
+    return true;
+}
 namespace {
 char serialBuffer[SERIAL_BUFFER_SIZE];
 uint8_t serialIndex=0;
@@ -60,12 +64,12 @@ void printStatus() {
     printApplicationStatus();
 }
 void printHelp() {
-    Serial.println(F("IK/XY/LINE/RUNLINE x z; XYZ/IK3 x y z; J0..3 deg"));
-    Serial.println(F("xJ0,yJ1,zJ2; MODE JOINT|CART; O/S H/L"));
-    Serial.println(F("SPEED 5..90; HOLD GO CANCEL STATUS HELP"));
-    Serial.println(F("A B C; REC [START|STOP]; PLAY HOME BTN 1..4"));
-    Serial.println(F("TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK LIST CLEAR ORDER 1..5"));
-    Serial.println(F("DRAW POLY/CURVE/LINE x1 y1 x2 y2/SHAPE N|TRIANGLE|Z|V [bounds]"));
+    Serial.println(F("IK/XY/LINE/RUNLINE x z; XYZ/IK3 x y z; J0..3 deg\r\n"
+        "xJ0,yJ1,zJ2; MODE JOINT|CART; O/S H/L\r\n"
+        "SPEED 5..90; HOLD GO CANCEL STATUS HELP\r\n"
+        "A B C; REC [START|STOP]; PLAY HOME BTN 1..4\r\n"
+        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK LIST CLEAR ORDER 1..5\r\n"
+        "DRAW POLY/CURVE/LINE x1 y1 x2 y2/SHAPE N|TRIANGLE|Z|V [bounds]"));
 }
 bool angleTriple(char* line) {
     Pose pose=commandedPose(); uint8_t seen=0; char* save=nullptr;
@@ -93,8 +97,7 @@ void executeLine(char* line) {
     if(!count) return;
     bool appSuccess;
     if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
-    float v[3]={}; bool numbers=count>=2 && count<=4;
-    for(uint8_t i=1;i<count && i<=3;++i) if(!parseNumber(tokens[i],v[i-1])) numbers=false;
+    float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
     const char* c=tokens[0];
     int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0"));
     float shortcut;
