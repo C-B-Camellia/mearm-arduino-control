@@ -114,10 +114,10 @@ bool drawGoal(uint16_t index,Pose& pose) {
     if(index>homeCount) return rejectControl(ControlError::Invalid);
     pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
 }
-float maxDifference(const Pose& a,const Pose& b) {
+__attribute__((noinline)) float maxDifference(const Pose& a,const Pose& b) {
     float d=0; for(uint8_t i=0;i<JointCount;++i) d=max(d,fabsf(a.angles[i]-b.angles[i])); return d;
 }
-Pose interpolate(const Pose& a,const Pose& b,float t) {
+__attribute__((noinline)) Pose interpolate(const Pose& a,const Pose& b,float t) {
     Pose p; for(uint8_t i=0;i<JointCount;++i) p.angles[i]=a.angles[i]+(b.angles[i]-a.angles[i])*t; return p;
 }
 bool sampleGoal(uint16_t index,Pose& pose) {

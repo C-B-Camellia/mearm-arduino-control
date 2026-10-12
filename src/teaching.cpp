@@ -35,21 +35,22 @@ bool beginTeach() {
     if(!setControlMode(ControlMode::Cartesian)) return false;
     active=true; marking=false; syncManualTarget(millis()); return true;
 }
-bool captureTeachHeight(bool drawing) {
+static bool captureHeight(float& z,bool& valid) {
     if(!mutableNow()) return false;
     if(!active || marking) return rejectControl(ControlError::Invalid);
     Point3D p=currentPoint(); if(!isfinite(p.z)) return rejectControl(ControlError::Uncalibrated);
-    if(drawing) { settings.drawZ=p.z; settings.drawValid=true; }
-    else { settings.travelZ=p.z; settings.travelValid=true; }
+    z=p.z; valid=true;
     return true;
 }
+bool captureTeachHeight(bool drawing) { return drawing?captureHeight(settings.drawZ,settings.drawValid):captureHeight(settings.travelZ,settings.travelValid); }
+bool captureTeachAlignment() { return captureHeight(settings.teachZ,settings.teachValid); }
 bool beginMarking() {
     if(!mutableNow()) return false;
-    if(!active || !drawSettingsValid()) return rejectControl(ControlError::Uncalibrated);
+    if(!active || !drawSettingsValid() || !settings.teachValid || !isfinite(settings.teachZ) || settings.teachZ<=settings.drawZ || settings.teachZ>settings.travelZ) return rejectControl(ControlError::Uncalibrated);
     Point3D p=currentPoint();
     // Do not silently move vertically when entering marking. Capture travelZ at
-    // this pose, then enter with the joystick centered.
-    if(fabsf(p.z-settings.travelZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
+    // this pose, then explicitly capture TEACHZ and enter centered.
+    if(fabsf(p.z-settings.teachZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
     marking=true; syncManualTarget(millis()); return true;
 }
 bool markTeachPoint() {

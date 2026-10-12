@@ -34,6 +34,7 @@ __attribute__((noinline)) bool dispatchServiceAction(const Action& action,const 
     case AppAction::TeachStart: return beginTeach();
     case AppAction::DrawHeight: return captureTeachHeight(true);
     case AppAction::TravelHeight: return captureTeachHeight(false);
+    case AppAction::TeachAlignment: return captureTeachAlignment();
     case AppAction::Marking: return beginMarking();
     case AppAction::Mark: return markTeachPoint();
     case AppAction::Clear: return clearTeachPoints();
@@ -74,7 +75,7 @@ bool onButtonPressed(uint8_t button) {
     if(teachingActive()) {
         if(isMotionBusy()) return rejectControl(ControlError::Busy);
         if(markingActive()) {
-            const AppAction actions[]={AppAction::Mark,AppAction::Polyline,AppAction::Curve,AppAction::Clear};
+            const AppAction actions[]={AppAction::Mark,AppAction::Polyline,AppAction::Curve,AppAction::Undo};
             return dispatchAction({actions[button-1],0});
         }
         const AppAction actions[]={AppAction::DrawHeight,AppAction::TravelHeight,AppAction::Marking,AppAction::TeachExit};
@@ -158,9 +159,9 @@ bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
     case 11:
         if(count!=2) break;
         {
-            int sub=commandIndex(t[1],commandNames("START\0DRAWZ\0TRAVELZ\0MARKING\0EXIT\0"));
+            int sub=commandIndex(t[1],commandNames("START\0DRAWZ\0TRAVELZ\0MARKING\0EXIT\0TEACHZ\0"));
             if(sub<0) break;
-            action={sub<4?static_cast<AppAction>(static_cast<uint8_t>(AppAction::TeachStart)+sub):AppAction::TeachExit,0}; goto dispatch;
+            action={sub<4?static_cast<AppAction>(static_cast<uint8_t>(AppAction::TeachStart)+sub):sub==4?AppAction::TeachExit:AppAction::TeachAlignment,0}; goto dispatch;
         }
     case 12: success=executeDrawCommand(t,count); return true;
     }

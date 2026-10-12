@@ -489,6 +489,15 @@ void testRuntimePickPersistence() {
     CHECK(pickStageMask(0)==255 && pickCalibrationValid(0));
     send("PICK SPEED A 3 40"); send("PICK WAIT A GRIP 200");
     CHECK(pickStageSpeed(0,2)==40 && pickStageDwell(0,2)==200);
+    // Different objects may need different measured clamping angles.
+    Pose poses[8];
+    for(uint8_t i=0;i<8;++i) { poses[i]=commandedPose(); poses[i].angles[Gripper]=i<2 || i>=6?80:50; }
+    setSyntheticPickProgram(2,poses);
+    Pose custom; uint16_t dwell;
+    CHECK(getPickStage(2,2,custom,dwell) && custom.angles[Gripper]==50);
+    poses[4].angles[Gripper]=55; setSyntheticPickProgram(2,poses);
+    CHECK(!getPickStage(2,4,custom,dwell)); // Do not open/change grip during carry.
+    send("PICK CLEAR C");
     for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
         Serial.output.clear(); send(bad); CHECK(contains("INVALID"));
     }
@@ -578,7 +587,8 @@ void prepareTeachFive() {
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
-    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(markingActive());
+    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("UNCALIBRATED"));
+    send("TEACH TEACHZ"); send("BTN 3"); CHECK(markingActive());
     for(uint8_t i=0;i<5;++i) {
         p=commandedPose(); p.angles[Base]=80+5*i;
         CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
@@ -587,7 +597,7 @@ void prepareTeachFive() {
 }
 void testTeachAndDraw() {
     fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
-    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("UNDO");
+    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
     CHECK(teachPointCount()==4); TeachPoint undone;
     CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,95);
     CHECK(fabs(undone.x-surviving.x)<0.001f);
@@ -674,6 +684,10 @@ void testFrozenTaskSpeeds() {
         uint32_t start=simulatedTime; finishTask(); duration[variant]=simulatedTime-start;
     }
     CHECK(duration[0]==duration[1]);
+    fresh(); send("REC START"); runFor(3000); runFor(1000); send("REC STOP");
+    CHECK(hasRecording() && contains("SHORT"));
+    send("REC START"); CHECK(contains("REC OVERWRITE") && isRecording());
+    clearRecording();
 }
 void testDecimalDiagnostics() {
     fresh();

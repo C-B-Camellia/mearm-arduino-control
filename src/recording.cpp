@@ -65,6 +65,7 @@ void printRecordingStatus() {
     printChar(' '); printUnsigned(status.duration);
     printText(F("ms n=")); printUnsigned(status.count);
     printText(F(" err<=")); printUnsigned(status.errorBound);
+    if(status.state==RecordState::Ready && status.duration<=10000) printText(F(" SHORT"));
     Serial.println(status.degraded?F(" DEGRADED"):F(" deg"));
 }
 bool isRecording() { return status.state==RecordState::Arming || status.state==RecordState::Recording; }
@@ -78,6 +79,7 @@ bool getRecordedFrame(uint8_t index,RecordedFrame& out) {
 bool startRecording(uint32_t now) {
     if(isRecording() || isMotionBusy() || hasPendingPose() || isPickSaving()) return rejectControl(ControlError::Busy);
     if(isArmHeld()) return rejectControl(ControlError::Held);
+    if(hasRecording()) printLine(F("REC OVERWRITE"));
     status=RecordingStatus{}; status.state=RecordState::Arming;
     startedAt=now; reportedSecond=0; printLine(F("REC ARMING 3")); clearControlError(); return true;
 }

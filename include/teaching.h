@@ -10,9 +10,10 @@ struct TeachPath {
     uint8_t count = 0;
 };
 struct TeachPoint { float x,y; };
-struct TeachSettings { float drawZ,travelZ; bool drawValid,travelValid; };
+struct TeachSettings { float drawZ,travelZ,teachZ; bool drawValid,travelValid,teachValid; };
 bool beginTeach();
 bool captureTeachHeight(bool drawing);
+bool captureTeachAlignment();
 bool beginMarking();
 bool markTeachPoint();
 bool clearTeachPoints();

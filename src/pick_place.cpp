@@ -125,9 +125,12 @@ uint8_t pickStageSpeed(uint8_t object,uint8_t stage) { return readByte(address(o
 uint16_t pickStageDwell(uint8_t object,uint8_t stage) { return static_cast<uint16_t>(readByte(address(object,stage)+5))*10; }
 bool getPickStage(uint8_t object,uint8_t stage,Pose& pose,uint16_t& dwell) {
     if(stage>=PICK_STAGE_COUNT || !pickCalibrationValid(object)) return false;
-    for(uint8_t i=0;i<JointCount;++i) pose.angles[i]=readByte(address(object,stage)+i);
+    uint8_t open=readByte(address(object,0)+3),closed=readByte(address(object,2)+3),release=readByte(address(object,6)+3);
+    uint8_t grip=readByte(address(object,stage)+3);
     uint8_t speed=pickStageSpeed(object,stage);
-    if(speed<5 || speed>90 || pose.angles[Gripper]!=static_cast<int>(stage<2 || stage>=6?hardwareConfig.gripOpen:hardwareConfig.gripClosed)) return false;
+    if(speed<5 || speed>90 || closed==open || release==closed || grip!=(stage<2?open:stage<6?closed:release)) return false;
+    for(uint8_t i=0;i<Gripper;++i) pose.angles[i]=readByte(address(object,stage)+i);
+    pose.angles[Gripper]=grip;
     dwell=pickStageDwell(object,stage); return true;
 }
 __attribute__((noinline)) bool executePickCommand(char* const* t,uint8_t count) {

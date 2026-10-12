@@ -67,7 +67,7 @@ __attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickIn
         Point3D point=cartTarget;
         if(in.lx) point.x+=axisVelocity(in.lx,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
         if(in.ly) point.y+=axisVelocity(in.ly,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
-        if(markingActive()) point.z=teachSettings().travelZ;
+        if(markingActive()) point.z=teachSettings().teachZ;
         else if(in.ry) point.z+=axisVelocity(in.ry,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;
         candidate.angles[Base]=ik.j0; candidate.angles[Shoulder]=ik.j1; candidate.angles[Elbow]=ik.j2;
