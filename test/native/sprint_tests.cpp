@@ -104,9 +104,23 @@ void testParser() {
     Serial.input="IK 42."; loop(); Serial.input="7 51\r\n"; loop(); CHECK(contains("IK J1="));
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
 }
+void testHoldAndJoystick() {
+    fresh(); CHECK(!isArmHeld()); CHECK(setControlMode(ControlMode::Cartesian));
+    CHECK(setControlMode(ControlMode::Joint));
+    send("HOLD"); CHECK(isArmHeld()); CHECK(!requestPose(commandedPose()));
+    send("GO"); CHECK(!isArmHeld() && !hasPendingPose());
+    for(int raw=0;raw<=1023;++raw) {
+        analogValues[0]=raw; JoystickInput in=readJoysticks();
+        if(raw<486) CHECK(in.lx<0);
+        else if(raw>526) CHECK(in.lx>0);
+        else CHECK(in.lx==0);
+    }
+    analogValues[0]=0; CHECK(readJoysticks().lx==-2);
+    analogValues[0]=1023; CHECK(readJoysticks().lx==2);
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
-    testSafety(); testMath(); testLine(); testParser();
+    testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick();
     std::cout << "PASS: " << assertions << " checks\n";
 }

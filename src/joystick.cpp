@@ -15,10 +15,10 @@ int8_t quantizeAxis(int raw, const JoystickAxisConfig& config) {
         return 0;
     }
     if (raw <= 8) {
-        return 2 * config.direction;
+        return -2 * config.direction;
     }
     if (raw >= 1015) {
-        return -2 * config.direction;
+        return 2 * config.direction;
     }
     if (delta < 0) return -1 * config.direction;
     return 1 * config.direction;
