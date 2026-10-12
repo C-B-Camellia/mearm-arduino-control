@@ -47,7 +47,9 @@ void syncManualTarget(uint32_t now) {
     lastManualTime=now; armed=false;
 }
 void initializeManualControl(uint32_t now) { currentMode=ControlMode::Joint; syncManualTarget(now); }
-void updateManualControl(uint32_t now,const JoystickInput& in) {
+// Manual IK scratch must not occupy the persistent loop frame while serial
+// events execute drawing cancellation/recovery through their own IK path.
+__attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickInput& in) {
     if(isMotionBusy() || isArmHeld() || hasPendingPose()) { syncManualTarget(now); return; }
     uint32_t elapsed=now-lastManualTime; lastManualTime=now;
     if(!armed) { if(joysticksCentered(in)) { syncManualTarget(now); armed=true; } return; }

@@ -11,14 +11,17 @@
 namespace { uint8_t nextObject=0; }
 Workflow currentWorkflow() { return teachingActive()?(markingActive()?Workflow::TeachMark:Workflow::TeachSetup):Workflow::Normal; }
 void initializeApplication() { nextObject=0; clearRecording(); initializeTeaching(); }
-bool dispatchAction(const Action& action,const float* values) {
+namespace {
+// Heavy service scratch is only needed by the service itself. Button/HOME
+// forwarding must not carry this frame into cancellation's IK/FK call chain.
+__attribute__((noinline)) bool dispatchServiceAction(const Action& action,const float* values) {
     switch(action.type) {
     case AppAction::Pick:
         if(teachingActive()) return rejectControl(ControlError::Busy);
         return startPickPlace(action.argument);
     case AppAction::RecordStart:
         if(currentWorkflow()!=Workflow::Normal) return rejectControl(ControlError::Busy);
-        Serial.println(F("REC replaces previous RAM recording")); return startRecording(millis());
+        Serial.println(F("REC overwrites RAM")); return startRecording(millis());
     case AppAction::RecordStop: return stopRecording(millis());
     case AppAction::RecordToggle:
         return dispatchAction({isRecording()?AppAction::RecordStop:AppAction::RecordStart,0});
@@ -26,9 +29,7 @@ bool dispatchAction(const Action& action,const float* values) {
         if(teachingActive()) return rejectControl(ControlError::Busy);
         return startPlayback();
     case AppAction::Home:
-        if(isRecording()) return rejectControl(ControlError::Busy);
-        return cancelAndReturnHome();
-    case AppAction::Button: return onButtonPressed(action.argument);
+    case AppAction::Button: break; // Handled by the public event entry below.
     case AppAction::TeachStart: return beginTeach();
     case AppAction::DrawHeight: return captureTeachHeight(true);
     case AppAction::TravelHeight: return captureTeachHeight(false);
@@ -46,6 +47,15 @@ bool dispatchAction(const Action& action,const float* values) {
         return startBasicShape(static_cast<ShapeId>(action.argument),{values[0],values[1]},{values[2],values[3]});
     }
     return rejectControl(ControlError::Invalid);
+}
+}
+__attribute__((noinline)) bool dispatchAction(const Action& action,const float* values) {
+    if(action.type==AppAction::Button) return onButtonPressed(action.argument);
+    if(action.type==AppAction::Home) {
+        if(isRecording()) return rejectControl(ControlError::Busy);
+        return cancelAndReturnHome();
+    }
+    return dispatchServiceAction(action,values);
 }
 bool onButtonPressed(uint8_t button) {
     if(button<1 || button>4) return rejectControl(ControlError::Invalid);

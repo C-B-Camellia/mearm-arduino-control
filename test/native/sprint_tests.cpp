@@ -300,6 +300,24 @@ void testMotionPayloadTransitions() {
     CHECK(!isArmHeld()); CHECK(cancelAndReturnHome()); finishTask();
     CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
 }
+void testManualFrameOwnership() {
+    fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+    CHECK(setControlMode(ControlMode::Cartesian)); advance();
+    Point3D before=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+    for(uint8_t i=0;i<25;++i) {
+        simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{1,0,0,0}); CHECK(applyPendingPose());
+    }
+    Point3D after=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+    CHECK(after.x-before.x>2 && after.x-before.x<8); // 5 mm ideal, integer Servo quantization.
+    Pose target=commandedPose(); target.angles[Shoulder]=110;
+    CHECK(startJointMove(target)); servoWrites.clear();
+    updateManualControl(simulatedTime+1000,JoystickInput{2,2,2,2});
+    CHECK(!hasPendingPose() && servoWrites.empty()); // Manual cannot steal validation/paused owner.
+    CHECK(pauseMotion(simulatedTime)); updateManualControl(simulatedTime+2000,JoystickInput{2,2,2,2});
+    CHECK(!hasPendingPose() && servoWrites.empty());
+    CHECK(resumeMotion(simulatedTime)); finishTask();
+    CHECK(commandedPose().angles[Shoulder]==110 && !isArmHeld());
+}
 TeachPoint blendPoint(const TeachPoint& a,const TeachPoint& b,float t) { return {a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t}; }
 void testCurveIndependentReference() {
     TeachPoint a={0,0},b={3,4},c={9,1},d={14,6};
@@ -400,7 +418,7 @@ void testDecimalDiagnostics() {
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
-    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions();
+    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
     testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

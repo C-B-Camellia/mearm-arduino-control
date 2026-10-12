@@ -26,7 +26,7 @@ void setup()
     initializeManualControl(lastControlTime);
 
     Serial.println();
-    Serial.println(F("MeArm assessment candidate; HELP"));
+    Serial.println(F("MeArm dev; HELP"));
 }
 
 void loop()
