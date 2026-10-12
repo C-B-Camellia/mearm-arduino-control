@@ -13,8 +13,13 @@ namespace {
 struct MotionTask {
     MotionStatus status;
     MotionState resumeState;
-    Pose origin, target, segmentStart, segmentTarget;
-    Point3D cartStart,cartEnd;
+    Pose origin,segmentStart,segmentTarget;
+    // TaskKind is the discriminator: JointMove/Home use target; Cartesian,
+    // line and drawing tasks use cart. No task reads both payloads.
+    union {
+        Pose target;
+        struct { Point3D start,end; } cart;
+    };
     uint32_t elapsed,lastUpdate,duration;
     uint16_t validationSubstep,validationSubsteps;
     uint16_t dwellRemaining;
@@ -24,6 +29,9 @@ struct MotionTask {
     bool segmentLoaded,endpointQueued;
 };
 MotionTask task{};
+#ifdef __AVR__
+static_assert(sizeof(MotionTask)==104,"motion payload grew beyond audited AVR budget");
+#endif
 bool isDrawingKind(TaskKind kind) {
     return kind==TaskKind::DrawLine || kind==TaskKind::DrawShape || kind==TaskKind::Polyline || kind==TaskKind::Curve;
 }
@@ -35,10 +43,10 @@ uint8_t drawCount() {
 bool drawVertex(uint8_t index,TeachPoint& p) {
     if(task.status.kind==TaskKind::DrawLine) {
         if(index>1) return false;
-        p=index==0?TeachPoint{task.cartStart.x,task.cartStart.y}:TeachPoint{task.cartEnd.x,task.cartEnd.y}; return true;
+        p=index==0?TeachPoint{task.cart.start.x,task.cart.start.y}:TeachPoint{task.cart.end.x,task.cart.end.y}; return true;
     }
     if(task.status.kind==TaskKind::DrawShape)
-        return shapeVertex(task.shape,index,{task.cartStart.x,task.cartStart.y},{task.cartEnd.x,task.cartEnd.y},p);
+        return shapeVertex(task.shape,index,{task.cart.start.x,task.cart.start.y},{task.cart.end.x,task.cart.end.y},p);
     return getTeachPoint(index,p);
 }
 bool curveKnots(uint8_t segment,TeachPoint& a,TeachPoint& b,TeachPoint& c,TeachPoint& d) {
@@ -127,9 +135,9 @@ bool sampleGoal(uint16_t index,Pose& pose) {
         return true;
     }
     if(isDrawingKind(task.status.kind)) return drawGoal(index,pose);
-    Point3D p={task.cartStart.x+(task.cartEnd.x-task.cartStart.x)*t,
-               task.cartStart.y+(task.cartEnd.y-task.cartStart.y)*t,
-               task.cartStart.z+(task.cartEnd.z-task.cartStart.z)*t};
+    Point3D p={task.cart.start.x+(task.cart.end.x-task.cart.start.x)*t,
+               task.cart.start.y+(task.cart.end.y-task.cart.start.y)*t,
+               task.cart.start.z+(task.cart.end.z-task.cart.start.z)*t};
     if(task.status.kind==TaskKind::LinePreview || task.status.kind==TaskKind::LineExecution) {
         IKResult ik=solveIK(p.x,p.z); if(!ik.valid) return rejectControl(ControlError::Unreachable);
         pose.angles[Shoulder]=ik.j1; pose.angles[Elbow]=ik.j2;
@@ -224,7 +232,7 @@ bool startLine(Point2D target,TaskKind kind) {
     float n=ceilf(sqrtf(dx*dx+dz*dz)/LINE_STEP_MM);
     if(!isfinite(n) || n>32767 || !isfinite(target.x) || !isfinite(target.z)) return rejectControl(ControlError::Invalid);
     if(!begin(kind,max(1,static_cast<int>(n)))) return false;
-    task.cartStart={start.x,0,start.z}; task.cartEnd={target.x,0,target.z}; return true;
+    task.cart.start={start.x,0,start.z}; task.cart.end={target.x,0,target.z}; return true;
 }
 bool startCartesianMove(const Point3D& target) {
     if(!cartesianCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
@@ -233,7 +241,7 @@ bool startCartesianMove(const Point3D& target) {
     float n=ceilf(sqrtf(dx*dx+dy*dy+dz*dz)/2.0f);
     if(!isfinite(n) || n>32767) return rejectControl(ControlError::Invalid);
     if(!begin(TaskKind::CartesianMove,max(1,static_cast<int>(n)))) return false;
-    task.cartStart=start; task.cartEnd=target; return true;
+    task.cart.start=start; task.cart.end=target; return true;
 }
 void updateMotion(uint32_t now,bool controlDue) {
     if(task.status.state==MotionState::Validating) { validateOne(); return; }
@@ -305,7 +313,7 @@ bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoi
     if(hardwareConfig.home.angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
     for(uint8_t i=0;i<hardwareConfig.homeViaCount;++i) if(hardwareConfig.homeVia[i].angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
     if(!begin(kind,1)) return false;
-    task.shape=shape; task.cartStart={a.x,a.y,0}; task.cartEnd={b.x,b.y,0};
+    task.shape=shape; task.cart.start={a.x,a.y,0}; task.cart.end={b.x,b.y,0};
     uint32_t count=2*(hardwareConfig.homeViaCount+1)+4;
     for(uint8_t i=0;i<drawCount()-1;++i) {
         uint16_t n=strokeSteps(i);

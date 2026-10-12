@@ -285,6 +285,21 @@ void testPackedPickCommands() {
     setSyntheticPickProgram(1,poses); CHECK(!pickCalibrationValid(1));
     CHECK(servoWrites.empty());
 }
+void testMotionPayloadTransitions() {
+    fresh(); syntheticCalibration();
+    Pose target=commandedPose(); target.angles[Shoulder]=110;
+    CHECK(startJointMove(target)); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
+    Point3D cart=solveFK3D(90,115,100);
+    CHECK(startCartesianMove(cart)); finishTask();
+    Point3D actual=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+    CHECK(fabs(actual.x-cart.x)<3 && fabs(actual.z-cart.z)<3);
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose(); hardwareConfig.home.angles[Shoulder]=120;
+    CHECK(startHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==120);
+    Point2D planar=solveFK(110,100).position;
+    CHECK(startLine(planar,TaskKind::LineExecution)); finishTask();
+    CHECK(!isArmHeld()); CHECK(cancelAndReturnHome()); finishTask();
+    CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
+}
 TeachPoint blendPoint(const TeachPoint& a,const TeachPoint& b,float t) { return {a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t}; }
 void testCurveIndependentReference() {
     TeachPoint a={0,0},b={3,4},c={9,1},d={14,6};
@@ -385,7 +400,7 @@ void testDecimalDiagnostics() {
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
-    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands();
+    testRecordingAndButtons(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions();
     testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }
