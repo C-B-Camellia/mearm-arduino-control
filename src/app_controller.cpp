@@ -6,6 +6,7 @@
 #include "control_error.h"
 #include "teaching.h"
 #include "path_planner.h"
+#include "serial_format.h"
 #include <string.h>
 namespace { uint8_t nextObject=0; }
 Workflow currentWorkflow() { return teachingActive()?(markingActive()?Workflow::TeachMark:Workflow::TeachSetup):Workflow::Normal; }
@@ -91,7 +92,7 @@ bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
     else if(op==8 && count==1) action={AppAction::Clear,0};
     else if(op==9 && count==1) {
         for(uint8_t i=0;i<teachPointCount();++i) {
-            TeachPoint point; getTeachPoint(i,point); Serial.print(i+1); Serial.print(' '); Serial.print(point.x,2); Serial.print(' '); Serial.println(point.y,2);
+            TeachPoint point; getTeachPoint(i,point); Serial.print(i+1); Serial.print(' '); printDecimal(point.x); Serial.print(' '); printDecimal(point.y); Serial.println();
         }
         success=true; return true;
     }

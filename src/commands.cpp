@@ -11,6 +11,7 @@
 #include "app_controller.h"
 #include "recording.h"
 #include "teaching.h"
+#include "serial_format.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,14 +44,14 @@ void result(bool success) { if(success) Serial.println(F("OK")); else printContr
 void invalid() { rejectControl(ControlError::Invalid); printControlError(); }
 void printIK(const IKResult& ik) {
     if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); return; }
-    Serial.print(F("IK J1=")); Serial.print(ik.j1,2); Serial.print(F(" J2=")); Serial.println(ik.j2,2);
+    Serial.print(F("IK J1=")); printDecimal(ik.j1); Serial.print(F(" J2=")); printDecimal(ik.j2); Serial.println();
 }
 void printStatus() {
-    Pose p=commandedPose(); MotionStatus s=motionStatus();
+    MotionStatus s=motionStatus();
     uint8_t enabled=0;
-    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { Serial.print(p.angles[i],0); Serial.print(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
-    Serial.print(F("autoSpeed=")); Serial.print(automaticSpeed(),1);
-    Serial.print(F(" manualScale=")); Serial.print(manualSpeedScale(),2);
+    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); Serial.print(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
+    Serial.print(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
+    Serial.print(F(" manualScale=")); printDecimal(manualSpeedScale());
     Serial.print(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
     Serial.print(F(" task=")); Serial.print(static_cast<int>(s.kind)); Serial.print(F(" phase=")); Serial.print(static_cast<int>(s.state));
     Serial.print(F(" move=")); Serial.print(s.completedWaypoints); Serial.print('/'); Serial.print(s.totalWaypoints);
@@ -59,11 +60,11 @@ void printStatus() {
     printApplicationStatus();
 }
 void printHelp() {
-    Serial.println(F("IK/XY/LINE/RUNLINE x z; J0..J3 deg; XYZ/IK3 x y z"));
-    Serial.println(F("x90,y120,z95; MODE JOINT|CART; O/S; H/L manual"));
-    Serial.println(F("SPEED 5..90 auto; HOLD/GO/CANCEL; STATUS/HELP"));
-    Serial.println(F("A/B/C; REC [START|STOP]; PLAY; HOME; BTN 1..4"));
-    Serial.println(F("TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK/LIST/CLEAR; ORDER 1 2 3 4 5"));
+    Serial.println(F("IK/XY/LINE/RUNLINE x z; XYZ/IK3 x y z; J0..3 deg"));
+    Serial.println(F("xJ0,yJ1,zJ2; MODE JOINT|CART; O/S H/L"));
+    Serial.println(F("SPEED 5..90; HOLD GO CANCEL STATUS HELP"));
+    Serial.println(F("A B C; REC [START|STOP]; PLAY HOME BTN 1..4"));
+    Serial.println(F("TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT; MARK LIST CLEAR ORDER 1..5"));
     Serial.println(F("DRAW POLY/CURVE/LINE x1 y1 x2 y2/SHAPE N|TRIANGLE|Z|V [bounds]"));
 }
 bool angleTriple(char* line) {
@@ -113,7 +114,7 @@ void executeLine(char* line) {
             if(!cartesianCalibrationValid()) { rejectControl(ControlError::Uncalibrated); printControlError(); return; }
             IKResult3D ik=solveIK3D(p);
             if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); }
-            else { Serial.print(F("IK3 ")); Serial.print(ik.j0,2); Serial.print(' '); Serial.print(ik.j1,2); Serial.print(' '); Serial.println(ik.j2,2); }
+            else { Serial.print(F("IK3 ")); printDecimal(ik.j0); Serial.print(' '); printDecimal(ik.j1); Serial.print(' '); printDecimal(ik.j2); Serial.println(); }
         }
         return;
     }

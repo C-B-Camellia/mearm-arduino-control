@@ -15,6 +15,7 @@
 #include "button_link.h"
 #include "teaching.h"
 #include "path_planner.h"
+#include "serial_format.h"
 #include <cstdlib>
 #include <iostream>
 #include <limits>
@@ -121,6 +122,9 @@ void testParser() {
     send("IK +42.7 51."); CHECK(contains("IK J1="));
     Serial.input="IK 42."; loop(); Serial.input="7 51\r\n"; loop(); CHECK(contains("IK J1="));
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
+    CHECK(contains("J=120 95") || contains("J=90 120 95 50"));
+    Serial.output.clear(); send("HELP");
+    for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
 }
 void testHoldAndJoystick() {
     fresh(); CHECK(!isArmHeld()); CHECK(!setControlMode(ControlMode::Cartesian));
@@ -318,11 +322,25 @@ void testFailureAndLatency() {
     float value; CHECK(parseNumber("-.25",value) && value==-0.25f);
     CHECK(!parseNumber("1e2",value)); CHECK(!parseNumber("--1",value));
 }
+void testDecimalDiagnostics() {
+    fresh();
+    for(uint8_t digits=0;digits<=2;++digits) {
+        Serial.output.clear(); printDecimal(12.375f,digits);
+        CHECK(Serial.output==(digits==0?"12":digits==1?"12.4":"12.38"));
+    }
+    Serial.output.clear(); printDecimal(-0.125f); CHECK(Serial.output=="-0.13");
+    Serial.output.clear(); printDecimal(0); CHECK(Serial.output=="0.00");
+    Serial.output.clear(); printDecimal(999.999f); CHECK(Serial.output=="1000.00");
+    Serial.output.clear(); printDecimal(std::numeric_limits<float>::quiet_NaN()); CHECK(Serial.output=="nan");
+    Serial.output.clear(); printDecimal(std::numeric_limits<float>::infinity()); CHECK(Serial.output=="inf");
+    Serial.output.clear(); printDecimal(1e30f); CHECK(Serial.output=="ovf" && servoWrites.empty());
+    send("STATUS"); CHECK(contains("manualScale=1.00") && contains("autoSpeed=60.0"));
+}
 }
 int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testHomeAndPick();
-    testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency();
+    testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }
