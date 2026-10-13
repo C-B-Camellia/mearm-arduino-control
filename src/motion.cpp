@@ -238,7 +238,7 @@ __attribute__((noinline)) void execute(uint32_t now) {
         if(isDrawingKind(task.status.kind)) {
             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
             float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
-            float feed=10.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
+            float feed=25.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
             task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
         }
     }

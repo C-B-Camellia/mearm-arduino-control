@@ -31,6 +31,7 @@ struct Pose {
 };
 
 constexpr float J1_J2_MIN_SUM = 148.0f;
+constexpr float J1_J2_MAX_SUM = 250.0f; // 临时上界，非碰撞实测值
 
 extern JointControl joints[JointCount];
 

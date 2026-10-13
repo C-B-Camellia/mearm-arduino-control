@@ -122,7 +122,7 @@ void testParser() {
     send("IK +42.7 51."); CHECK(contains("IK J1="));
     Serial.input="IK 42."; loop(); Serial.input="7 51\r\n"; loop(); CHECK(contains("IK J1="));
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
-    CHECK(contains("J=120 95") || contains("J=90 120 95 50"));
+    CHECK(contains("J=120 60") || contains("J=90 120 60 50"));
     Serial.output.clear(); send("HELP");
     for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
     CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==5);
@@ -138,12 +138,20 @@ void testHoldAndJoystick() {
     send("GO"); CHECK(!isArmHeld() && !hasPendingPose());
     for(int raw=0;raw<=1023;++raw) {
         analogValues[0]=raw; JoystickInput in=readJoysticks();
-        if(raw<486) CHECK(in.lx<0);
-        else if(raw>526) CHECK(in.lx>0);
+        if(raw<486) CHECK(in.lx>0);
+        else if(raw>526) CHECK(in.lx<0);
         else CHECK(in.lx==0);
     }
-    analogValues[0]=0; CHECK(readJoysticks().lx==-2);
-    analogValues[0]=1023; CHECK(readJoysticks().lx==2);
+    analogValues[0]=0; CHECK(readJoysticks().lx==2);
+    analogValues[0]=1023; CHECK(readJoysticks().lx==-2);
+    // Old firmware switches to fast speed at exactly |raw-center| == 500.
+    analogValues[0]=506-499; CHECK(readJoysticks().lx==1);
+    analogValues[0]=506-500; CHECK(readJoysticks().lx==2);
+    analogValues[0]=506+499; CHECK(readJoysticks().lx==-1);
+    analogValues[0]=506+500; CHECK(readJoysticks().lx==-2);
+    analogValues[0]=506;
+    CHECK(MANUAL_JOINT_SLOW==45.0f && MANUAL_JOINT_FAST==90.0f);
+    CHECK(joints[Shoulder].commandedAngle==120 && joints[Elbow].commandedAngle==60);
     const int centers[4]={506,519,515,519};
     const int signs[4]={1,-1,1,1};
     for(uint8_t channel=0;channel<4;++channel) {
@@ -151,10 +159,10 @@ void testHoldAndJoystick() {
             for(uint8_t i=0;i<4;++i) analogValues[i]=centers[i];
             analogValues[channel]=centers[channel]+offset;
             JoystickInput input=readJoysticks(); const int actual[4]={input.lx,input.ly,input.rx,input.ry};
-            for(uint8_t i=0;i<4;++i) CHECK(actual[i]==(i!=channel || abs(offset)<=20?0:(offset<0?-signs[i]:signs[i])));
+            for(uint8_t i=0;i<4;++i) CHECK(actual[i]==(i!=channel || abs(offset)<=20?0:(offset<0?signs[i]:-signs[i])));
         }
-        analogValues[channel]=0; JoystickInput low=readJoysticks(); const int lo[4]={low.lx,low.ly,low.rx,low.ry}; CHECK(lo[channel]==-2*signs[channel]);
-        analogValues[channel]=1023; JoystickInput high=readJoysticks(); const int hi[4]={high.lx,high.ly,high.rx,high.ry}; CHECK(hi[channel]==2*signs[channel]);
+        analogValues[channel]=0; JoystickInput low=readJoysticks(); const int lo[4]={low.lx,low.ly,low.rx,low.ry}; CHECK(lo[channel]==2*signs[channel]);
+        analogValues[channel]=1023; JoystickInput high=readJoysticks(); const int hi[4]={high.lx,high.ly,high.rx,high.ry}; CHECK(hi[channel]==-2*signs[channel]);
     }
 }
 void syntheticCalibration() {
@@ -176,8 +184,8 @@ void test3DAndManual() {
     CHECK(!solveIK3D({0,0,50}).valid); CHECK(!solveIK3D({1000,1000,1000}).valid);
     CHECK(setControlMode(ControlMode::Cartesian)); CHECK(servoWrites.empty());
     CHECK(setControlMode(ControlMode::Joint));
-    fresh(); analogValues[1]=700; runFor(500);
-    CHECK(joints[Shoulder].commandedAngle>=99 && joints[Shoulder].commandedAngle<=100);
+    fresh(); analogValues[1]=300; runFor(500);
+    CHECK(joints[Shoulder].commandedAngle>=97 && joints[Shoulder].commandedAngle<=99);
     CHECK(automaticSpeed()==60 && manualSpeedScale()==1);
     send("H"); CHECK(manualSpeedScale()==1.25f && automaticSpeed()==60);
     send("H"); send("H"); CHECK(manualSpeedScale()==1.5f);
@@ -305,7 +313,7 @@ void testAdaptiveRecording() {
     RecordedFrame ended; CHECK(getRecordedFrame(recordingStatus().count-1,ended));
     CHECK(ended.timeMs==15007);
     // Preparation time is excluded, including manual adjustment during ARMING.
-    fresh(); send("BTN 2"); analogValues[1]=700; runFor(200); analogValues[1]=519;
+    fresh(); send("BTN 2"); analogValues[1]=300; runFor(200); analogValues[1]=519;
     CHECK(recordingStatus().count==0); runFor(2800); CHECK(recordingStatus().duration==0);
     CHECK(stopRecording(simulatedTime)); RecordedFrame armed;
     CHECK(getRecordedFrame(0,armed)); CHECK(armed.angles[Shoulder]<120 && armed.timeMs==0);
@@ -427,10 +435,17 @@ void testManualFrameOwnership() {
     CHECK(setControlMode(ControlMode::Cartesian)); advance();
     Point3D before=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
     for(uint8_t i=0;i<25;++i) {
-        simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{1,0,0,0}); CHECK(applyPendingPose());
+        simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{0,1,0,0}); CHECK(applyPendingPose());
     }
     Point3D after=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
-    CHECK(after.x-before.x>2 && after.x-before.x<8); // 5 mm ideal, integer Servo quantization.
+    CHECK(after.x-before.x< -2 && after.x-before.x> -8); // 5 mm ideal, integer Servo quantization.
+    CHECK(fabs(after.y-before.y)<2); // Forward/back must not command lateral motion.
+    for(uint8_t i=0;i<25;++i) {
+        simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{1,0,0,0}); CHECK(applyPendingPose());
+    }
+    Point3D lateral=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+    CHECK(lateral.y-after.y>2 && lateral.y-after.y<8); // Left/right controls world Y.
+    CHECK(fabs(lateral.x-after.x)<2);
     Pose target=commandedPose(); target.angles[Shoulder]=110;
     CHECK(startJointMove(target)); servoWrites.clear();
     updateManualControl(simulatedTime+1000,JoystickInput{2,2,2,2});
@@ -474,7 +489,7 @@ void testTeachAndDraw() {
     prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
     send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
-    Point3D expected=solveFK3D(100,123,95); CHECK(fabs(ordered.x-expected.x)<0.001f);
+    Point3D expected=solveFK3D(100,123,60); CHECK(fabs(ordered.x-expected.x)<0.001f);
     send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
     send("MARK"); CHECK(contains("BUSY")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());

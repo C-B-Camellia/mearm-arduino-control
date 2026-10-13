@@ -3,13 +3,13 @@
 
 #include <math.h>
 
-// Original master mapping, with this branch's calibrated elbow startup (95).
+// Original 2026-09-27 input mapping and joint start targets.
 // Fields: joystick pin, servo pin, center, commanded/goal angles, limits,
 //         direction sign, output enabled.
 JointControl joints[JointCount] = {
     {A0, 9, 506,  90.0f,  90.0f,  0.0f, 180.0f,  1, false}, // Base
     {A1, 8, 519, 120.0f, 120.0f, 20.0f, 125.0f, -1, true},  // Shoulder / J1
-    {A3, 7, 519,  95.0f,  95.0f, 40.0f, 130.0f,  1, true},  // Elbow / J2
+    {A3, 7, 519,  60.0f,  60.0f, 40.0f, 150.0f,  1, true},  // Elbow / J2
     {A2, 6, 515,  50.0f,  50.0f,  0.0f, 180.0f,  1, false}  // Gripper
 };
 namespace {
@@ -81,7 +81,8 @@ bool isSafePlanarPose(float shoulderAngle, float elbowAngle)
 {
     return withinLimits(shoulderAngle, joints[Shoulder]) &&
            withinLimits(elbowAngle, joints[Elbow]) &&
-           shoulderAngle + elbowAngle >= J1_J2_MIN_SUM;
+           shoulderAngle + elbowAngle >= J1_J2_MIN_SUM &&
+               shoulderAngle + elbowAngle <= J1_J2_MAX_SUM;
 }
 
 bool isSafePose(const Pose& pose)

@@ -65,10 +65,19 @@ __attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickIn
     } else {
         if(!cartesianCalibrationValid()) return;
         Point3D point=cartTarget;
-        if(in.lx) point.x+=axisVelocity(in.lx,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
-        if(in.ly) point.y+=axisVelocity(in.ly,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
-        if(markingActive()) point.z=teachSettings().travelZ;
-        else if(in.ry) point.z+=axisVelocity(in.ry,MANUAL_CART_SLOW,MANUAL_CART_FAST)*dt;
+        // 左摇杆前后 → X
+        if (in.ly)
+            point.x -= axisVelocity(in.ly, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
+
+        // 左摇杆左右 → Y
+        if (in.lx)
+            point.y += axisVelocity(in.lx, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
+
+        // 右摇杆前后 → Z
+        if (markingActive())
+            point.z = teachSettings().travelZ;
+        else if (in.ry)
+            point.z -= axisVelocity(in.ry, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;
         candidate.angles[Base]=ik.j0; candidate.angles[Shoulder]=ik.j1; candidate.angles[Elbow]=ik.j2;
         if(!markingActive() && in.rx && joints[Gripper].outputEnabled)

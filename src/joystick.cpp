@@ -19,14 +19,10 @@ int8_t quantizeAxis(int raw, const JoystickAxisConfig& config) {
     if (abs(delta) <= config.deadzone) {
         return 0;
     }
-    if (raw <= 8) {
-        return -2 * config.direction;
-    }
-    if (raw >= 1015) {
-        return 2 * config.direction;
-    }
-    if (delta < 0) return -1 * config.direction;
-    return 1 * config.direction;
+    // Preserve the user-supplied 2026-09-27 direction convention:
+    // positive ADC delta gives negative servo motion, before per-axis sign.
+    const int8_t level = abs(delta) >= 500 ? 2 : 1;
+    return (delta > 0 ? -level : level) * config.direction;
 }
 
 JoystickInput readJoysticks() {
