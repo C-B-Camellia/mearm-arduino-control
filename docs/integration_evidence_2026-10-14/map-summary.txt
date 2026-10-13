@@ -1,0 +1,4 @@
+.text           0x00000000     0x7ad2
+.data           0x00800100      0x11a load address 0x00007ad2
+.bss            0x0080021a      0x401
+.noinit         0x0080061b        0x0

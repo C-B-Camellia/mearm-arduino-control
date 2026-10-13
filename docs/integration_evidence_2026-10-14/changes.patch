@@ -1,0 +1,1315 @@
+diff --git a/include/app_controller.h b/include/app_controller.h
+index 52aef1a..7c32767 100644
+--- a/include/app_controller.h
++++ b/include/app_controller.h
+@@ -2,7 +2,7 @@
+ #include <Arduino.h>
+ enum class Workflow : uint8_t { Normal, TeachSetup, TeachMark };
+ enum class AppAction : uint8_t { Pick, RecordStart, RecordStop, RecordToggle, Play, Home, Button,
+-    TeachStart, DrawHeight, TravelHeight, Marking, Mark, Clear, TeachExit, Polyline, Curve, DrawLine, DrawShape };
++    TeachStart, DrawHeight, TravelHeight, Marking, Mark, Clear, TeachExit, Polyline, Curve, DrawLine, DrawShape, Undo, TeachAlignment };
+ struct Action { AppAction type; uint8_t argument; };
+ bool dispatchAction(const Action& action,const float* values=nullptr);
+ bool onButtonPressed(uint8_t button);
+diff --git a/include/control_settings.h b/include/control_settings.h
+index 9209f01..ff8ab87 100644
+--- a/include/control_settings.h
++++ b/include/control_settings.h
+@@ -4,5 +4,7 @@ float manualSpeedScale();
+ bool setManualSpeedScale(float scale);
+ void adjustManualSpeedScale(bool faster);
+ float automaticSpeed();
++float drawingFeed();
++bool setDrawingFeed(float mmPerSecond);
+ bool setAutomaticSpeed(float speed);
+ void resetControlSettings();
+diff --git a/include/hardware_config.h b/include/hardware_config.h
+index 74c9b67..c5e0710 100644
+--- a/include/hardware_config.h
++++ b/include/hardware_config.h
+@@ -20,7 +20,11 @@ struct HardwareConfig {
+     uint8_t homeViaCount;
+     Pose homeVia[2];
+ };
++#ifdef MEARM_NATIVE_TEST
+ extern HardwareConfig hardwareConfig;
++#else
++extern const HardwareConfig hardwareConfig;
++#endif
+ void configureCalibratedJoints();
+ bool cartesianCalibrationValid();
+ bool gripperCalibrationValid();
+diff --git a/include/pick_place.h b/include/pick_place.h
+index d14e9a3..fa96fcd 100644
+--- a/include/pick_place.h
++++ b/include/pick_place.h
+@@ -3,6 +3,15 @@
+ constexpr uint8_t PICK_STAGE_COUNT=8;
+ bool pickCalibrationValid(uint8_t object);
+ bool getPickStage(uint8_t object,uint8_t stage,Pose& pose,uint16_t& dwellMs);
++void initializePickConfiguration();
++bool loadPickConfiguration();
++bool savePickConfiguration();
++void updatePickPersistence();
++bool isPickSaving();
++uint8_t pickStageMask(uint8_t object);
++uint8_t pickStageSpeed(uint8_t object,uint8_t stage);
++uint16_t pickStageDwell(uint8_t object,uint8_t stage);
++bool executePickCommand(char* const* tokens,uint8_t count);
+ #ifdef MEARM_NATIVE_TEST
+ void setSyntheticPickProgram(uint8_t object,const Pose (&poses)[PICK_STAGE_COUNT]);
+ void clearSyntheticPickPrograms();
+diff --git a/include/serial_format.h b/include/serial_format.h
+index 98d0b1f..4c1aae9 100644
+--- a/include/serial_format.h
++++ b/include/serial_format.h
+@@ -2,3 +2,10 @@
+ #include <Arduino.h>
+ // Bounded diagnostics only; never quantizes a motion/IK input.
+ void printDecimal(float value,uint8_t digits=2);
++
++void printText(const __FlashStringHelper*);
++void printLine(const __FlashStringHelper*);
++void printChar(char);
++void printNewline();
++void printUnsigned(uint16_t);
++void printlnUnsigned(uint16_t);
+diff --git a/include/teaching.h b/include/teaching.h
+index 119c0a9..918f5eb 100644
+--- a/include/teaching.h
++++ b/include/teaching.h
+@@ -10,12 +10,14 @@ struct TeachPath {
+     uint8_t count = 0;
+ };
+ struct TeachPoint { float x,y; };
+-struct TeachSettings { float drawZ,travelZ; bool drawValid,travelValid; };
++struct TeachSettings { float drawZ,travelZ,teachZ; bool drawValid,travelValid,teachValid; };
+ bool beginTeach();
+ bool captureTeachHeight(bool drawing);
++bool captureTeachAlignment();
+ bool beginMarking();
+ bool markTeachPoint();
+ bool clearTeachPoints();
++bool undoTeachPoint();
+ bool exitTeach();
+ void initializeTeaching();
+ uint8_t teachPointCount();
+diff --git a/platformio.ini b/platformio.ini
+index b1d8403..d950246 100644
+--- a/platformio.ini
++++ b/platformio.ini
+@@ -22,6 +22,9 @@ build_flags =
+     -fmerge-all-constants
+     -fno-split-wide-types
+     -fno-tree-sra
++    -fno-gcse
++    -fno-tree-dominator-opts
++    -fno-move-loop-invariants
+ 
+ 
+ ; Diagnostic builds only. The production [env:uno] stays unchanged.
+@@ -47,3 +50,4 @@ build_flags =
+     -DMEARM_NANO_LINK
+     -DMEARM_BUTTON_RX=10
+     -DMEARM_BUTTON_BAUD=9600
++    -Wl,-Map,.pio/build/uno_nano_link/firmware.map
+diff --git a/src/app_controller.cpp b/src/app_controller.cpp
+index c491146..3a32e6c 100644
+--- a/src/app_controller.cpp
++++ b/src/app_controller.cpp
+@@ -7,10 +7,11 @@
+ #include "teaching.h"
+ #include "path_planner.h"
+ #include "serial_format.h"
++#include "pick_place.h"
+ #include <string.h>
+ namespace { uint8_t nextObject=0; }
+ Workflow currentWorkflow() { return teachingActive()?(markingActive()?Workflow::TeachMark:Workflow::TeachSetup):Workflow::Normal; }
+-void initializeApplication() { nextObject=0; clearRecording(); initializeTeaching(); }
++void initializeApplication() { nextObject=0; clearRecording(); initializeTeaching(); initializePickConfiguration(); }
+ namespace {
+ // Heavy service scratch is only needed by the service itself. Button/HOME
+ // forwarding must not carry this frame into cancellation's IK/FK call chain.
+@@ -33,9 +34,11 @@ __attribute__((noinline)) bool dispatchServiceAction(const Action& action,const
+     case AppAction::TeachStart: return beginTeach();
+     case AppAction::DrawHeight: return captureTeachHeight(true);
+     case AppAction::TravelHeight: return captureTeachHeight(false);
++    case AppAction::TeachAlignment: return captureTeachAlignment();
+     case AppAction::Marking: return beginMarking();
+     case AppAction::Mark: return markTeachPoint();
+     case AppAction::Clear: return clearTeachPoints();
++    case AppAction::Undo: return undoTeachPoint();
+     case AppAction::TeachExit: return exitTeach();
+     case AppAction::Polyline: return startPolyline();
+     case AppAction::Curve: return startCurve();
+@@ -50,6 +53,7 @@ __attribute__((noinline)) bool dispatchServiceAction(const Action& action,const
+ }
+ }
+ __attribute__((noinline)) bool dispatchAction(const Action& action,const float* values) {
++    if(isPickSaving()) return rejectControl(ControlError::Busy);
+     if(action.type==AppAction::Button) return onButtonPressed(action.argument);
+     if(action.type==AppAction::Home) {
+         if(isRecording()) clearRecording();
+@@ -58,6 +62,7 @@ __attribute__((noinline)) bool dispatchAction(const Action& action,const float*
+     return dispatchServiceAction(action,values);
+ }
+ bool onButtonPressed(uint8_t button) {
++    if(isPickSaving()) return rejectControl(ControlError::Busy);
+     if(button<1 || button>4) return rejectControl(ControlError::Invalid);
+     if(drawingTaskActive()) {
+         if(button==1) return pauseMotion(millis());
+@@ -70,7 +75,7 @@ bool onButtonPressed(uint8_t button) {
+     if(teachingActive()) {
+         if(isMotionBusy()) return rejectControl(ControlError::Busy);
+         if(markingActive()) {
+-            const AppAction actions[]={AppAction::Mark,AppAction::Polyline,AppAction::Curve,AppAction::Clear};
++            const AppAction actions[]={AppAction::Mark,AppAction::Polyline,AppAction::Curve,AppAction::Undo};
+             return dispatchAction({actions[button-1],0});
+         }
+         const AppAction actions[]={AppAction::DrawHeight,AppAction::TravelHeight,AppAction::Marking,AppAction::TeachExit};
+@@ -86,69 +91,88 @@ bool onButtonPressed(uint8_t button) {
+     }
+     return false;
+ }
+-bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
+-    const char* c=t[0];
+-    int op=commandIndex(c,commandNames("A\0B\0C\0REC\0PLAY\0HOME\0BTN\0MARK\0CLEAR\0LIST\0ORDER\0TEACH\0DRAW\0"));
+-    if(op<0) return false;
+-    success=false; Action action{};
+-    if(count==1 && (op==0 || op==1 || op==2)) action={AppAction::Pick,static_cast<uint8_t>(c[0]-'A')};
+-    else if(op==3 && count==1) action={AppAction::RecordToggle,0};
+-    else if(op==3 && count==2 && commandIs(t[1],"START")) action={AppAction::RecordStart,0};
+-    else if(op==3 && count==2 && commandIs(t[1],"STOP")) action={AppAction::RecordStop,0};
+-    else if(op==4 && count==1) action={AppAction::Play,0};
+-    else if(op==5 && count==1) action={AppAction::Home,0};
+-    else if(op==6 && count==2 && strlen(t[1])==1 && t[1][0]>='1' && t[1][0]<='4') action={AppAction::Button,static_cast<uint8_t>(t[1][0]-'0')};
+-    else if(op==7 && count==1) action={AppAction::Mark,0};
+-    else if(op==8 && count==1) action={AppAction::Clear,0};
+-    else if(op==9 && count==1) {
+-        for(uint8_t i=0;i<teachPointCount();++i) {
+-            TeachPoint point; getTeachPoint(i,point); Serial.print(i+1); Serial.print(' '); printDecimal(point.x); Serial.print(' '); printDecimal(point.y); Serial.println();
+-        }
+-        success=true; return true;
+-    }
+-    else if(op==10 && count==6) {
+-        uint8_t order[5];
+-        for(uint8_t i=0;i<5;++i) {
+-            if(strlen(t[i+1])!=1 || t[i+1][0]<'1' || t[i+1][0]>'5') { rejectControl(ControlError::Invalid); return true; }
+-            order[i]=t[i+1][0]-'0';
+-        }
+-        success=setTeachOrder(order); return true;
+-    }
+-    else if(op==11 && count==2) {
+-        switch(commandIndex(t[1],commandNames("START\0DRAWZ\0TRAVELZ\0MARKING\0EXIT\0"))) {
+-        case 0: action={AppAction::TeachStart,0}; break;
+-        case 1: action={AppAction::DrawHeight,0}; break;
+-        case 2: action={AppAction::TravelHeight,0}; break;
+-        case 3: action={AppAction::Marking,0}; break;
+-        case 4: action={AppAction::TeachExit,0}; break;
+-        default: rejectControl(ControlError::Invalid); return true;
+-        }
++namespace {
++__attribute__((noinline)) bool executeDrawCommand(char* const* t,uint8_t count) {
++    if(count==2) {
++        if(commandIs(t[1],"POLY")) return startPolyline();
++        if(commandIs(t[1],"CURVE")) return startCurve();
+     }
+-    else if(op==12 && count==2 && commandIs(t[1],"POLY")) action={AppAction::Polyline,0};
+-    else if(op==12 && count==2 && commandIs(t[1],"CURVE")) action={AppAction::Curve,0};
+-    else if(op==12 && count==6 && commandIs(t[1],"LINE")) {
+-        float values[4];
+-        if(!parseNumbers(t+2,4,values)) { rejectControl(ControlError::Invalid); return true; }
+-        success=dispatchAction({AppAction::DrawLine,0},values); return true;
++    float values[4];
++    if(count==6 && commandIs(t[1],"LINE")) {
++        if(!parseNumbers(t+2,4,values)) return rejectControl(ControlError::Invalid);
++        return dispatchAction({AppAction::DrawLine,0},values);
+     }
+-    else if(op==12 && (count==3 || count==7) && commandIs(t[1],"SHAPE")) {
++    if((count==3 || count==7) && commandIs(t[1],"SHAPE")) {
+         int shape=commandIndex(t[2],commandNames("N\0TRIANGLE\0Z\0V\0"));
+-        if(shape<0) { rejectControl(ControlError::Invalid); return true; }
+-        float values[4];
++        if(shape<0) return rejectControl(ControlError::Invalid);
+         if(count==7) {
+-            if(!parseNumbers(t+3,4,values)) { rejectControl(ControlError::Invalid); return true; }
++            if(!parseNumbers(t+3,4,values)) return rejectControl(ControlError::Invalid);
+         } else {
+             TeachPoint a,b;
+-            if(!getTeachPoint(0,a) || !getTeachPoint(1,b)) { rejectControl(ControlError::NoData); return true; }
++            if(!getTeachPoint(0,a) || !getTeachPoint(1,b)) return rejectControl(ControlError::NoData);
+             values[0]=min(a.x,b.x); values[1]=min(a.y,b.y); values[2]=max(a.x,b.x); values[3]=max(a.y,b.y);
+         }
+-        success=dispatchAction({AppAction::DrawShape,static_cast<uint8_t>(shape)},values); return true;
++        return dispatchAction({AppAction::DrawShape,static_cast<uint8_t>(shape)},values);
++    }
++    return rejectControl(ControlError::Invalid);
++}
++}
++bool executeAppCommand(char* const* t,uint8_t count,bool& success) {
++    if(commandIs(t[0],"PICK")) { success=executePickCommand(t,count); return true; }
++    int op=commandIndex(t[0],commandNames("A\0B\0C\0REC\0PLAY\0HOME\0BTN\0MARK\0CLEAR\0LIST\0ORDER\0TEACH\0DRAW\0UNDO\0"));
++    if(op<0) return false;
++    success=false;
++    Action action{};
++    switch(op) {
++    case 0: case 1: case 2:
++        if(count!=1) break;
++        action={AppAction::Pick,static_cast<uint8_t>(op)}; goto dispatch;
++    case 3:
++        if(count==1) { action={AppAction::RecordToggle,0}; goto dispatch; }
++        if(count!=2) break;
++        if(commandIs(t[1],"START")) action={AppAction::RecordStart,0};
++        else if(commandIs(t[1],"STOP")) action={AppAction::RecordStop,0};
++        else break;
++        goto dispatch;
++    case 4: case 5: case 7: case 8: case 13:
++        if(count!=1) break;
++        action={op==4?AppAction::Play:op==5?AppAction::Home:op==7?AppAction::Mark:op==8?AppAction::Clear:AppAction::Undo,0}; goto dispatch;
++    case 6:
++        if(count!=2 || t[1][1]!=0 || t[1][0]<'1' || t[1][0]>'4') break;
++        action={AppAction::Button,static_cast<uint8_t>(t[1][0]-'0')}; goto dispatch;
++    case 9:
++        if(count!=1) break;
++        for(uint8_t i=0;i<teachPointCount();++i) {
++            TeachPoint point; getTeachPoint(i,point); printUnsigned(i+1); printChar(' '); printDecimal(point.x); printChar(' '); printDecimal(point.y); printNewline();
++        }
++        success=true; return true;
++    case 10:
++        if(count!=6) break;
++        {
++            uint8_t order[5];
++            for(uint8_t i=0;i<5;++i) {
++                if(t[i+1][1]!=0 || t[i+1][0]<'1' || t[i+1][0]>'5') goto invalid;
++                order[i]=t[i+1][0]-'0';
++            }
++            success=setTeachOrder(order); return true;
++        }
++    case 11:
++        if(count!=2) break;
++        {
++            int sub=commandIndex(t[1],commandNames("START\0DRAWZ\0TRAVELZ\0MARKING\0EXIT\0TEACHZ\0"));
++            if(sub<0) break;
++            action={sub<4?static_cast<AppAction>(static_cast<uint8_t>(AppAction::TeachStart)+sub):sub==4?AppAction::TeachExit:AppAction::TeachAlignment,0}; goto dispatch;
++        }
++    case 12: success=executeDrawCommand(t,count); return true;
+     }
+-    else { rejectControl(ControlError::Invalid); return true; }
++invalid:
++    rejectControl(ControlError::Invalid); return true;
++dispatch:
+     success=dispatchAction(action); return true;
+ }
+ void printApplicationStatus() {
+-    Serial.print(F("workflow=")); Serial.println(static_cast<int>(currentWorkflow()));
++    printText(F("pickNext=")); printChar('A'+nextObject); printNewline();
++    printText(F("workflow=")); printlnUnsigned(static_cast<int>(currentWorkflow()));
+     printRecordingStatus();
+-    Serial.print(F("points=")); Serial.print(teachPointCount()); Serial.print(F(" paper=")); Serial.println(drawSettingsValid());
++    printText(F("points=")); printUnsigned(teachPointCount()); printText(F(" paper=")); printlnUnsigned(drawSettingsValid());
+ }
+diff --git a/src/commands.cpp b/src/commands.cpp
+index ca89f47..d74bc2b 100644
+--- a/src/commands.cpp
++++ b/src/commands.cpp
+@@ -12,6 +12,7 @@
+ #include "recording.h"
+ #include "teaching.h"
+ #include "serial_format.h"
++#include "pick_place.h"
+ #include <math.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -44,31 +45,33 @@ namespace {
+ char serialBuffer[SERIAL_BUFFER_SIZE];
+ uint8_t serialIndex=0;
+ bool discardLine=false;
+-void result(bool success) { if(success) Serial.println(F("OK")); else printControlError(); }
++void result(bool success) { if(success) printLine(F("OK")); else printControlError(); }
+ void invalid() { rejectControl(ControlError::Invalid); printControlError(); }
+ void printIK(const IKResult& ik) {
+     if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); return; }
+-    Serial.print(F("IK J1=")); printDecimal(ik.j1); Serial.print(F(" J2=")); printDecimal(ik.j2); Serial.println();
++    printText(F("IK J1=")); printDecimal(ik.j1); printText(F(" J2=")); printDecimal(ik.j2); printNewline();
+ }
+ void printStatus() {
+     MotionStatus s=motionStatus();
+     uint8_t enabled=0;
+-    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); Serial.print(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
+-    Serial.print(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
+-    Serial.print(F(" manualScale=")); printDecimal(manualSpeedScale());
+-    Serial.print(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
+-    Serial.print(F(" task=")); Serial.print(static_cast<int>(s.kind)); Serial.print(F(" phase=")); Serial.print(static_cast<int>(s.state));
+-    Serial.print(F(" move=")); Serial.print(s.completedWaypoints); Serial.print('/'); Serial.print(s.totalWaypoints);
+-    Serial.print(F(" held=")); Serial.print(isArmHeld()); Serial.print(F(" cal=")); Serial.println(cartesianCalibrationValid());
+-    Serial.print(F("enabled=")); Serial.print(enabled); Serial.print(F(" error=")); Serial.println(static_cast<int>(lastControlError()));
++    printText(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); printChar(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
++    printText(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
++    printText(F(" feed=")); printDecimal(drawingFeed(),1);
++    printText(F(" manualScale=")); printDecimal(manualSpeedScale());
++    printText(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
++    printText(F(" task=")); printUnsigned(static_cast<int>(s.kind)); printText(F(" phase=")); printUnsigned(static_cast<int>(s.state));
++    printText(F(" move=")); printUnsigned(s.completedWaypoints); printChar('/'); printUnsigned(s.totalWaypoints);
++    printText(F(" held=")); printUnsigned(isArmHeld()); printText(F(" cal=")); printlnUnsigned(cartesianCalibrationValid());
++    printText(F("enabled=")); printUnsigned(enabled); printText(F(" error=")); printlnUnsigned(static_cast<int>(lastControlError()));
+     printApplicationStatus();
+ }
+ void printHelp() {
+-    Serial.println(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
+-        "MODE JOINT|CART; O/S H/L; SPEED\r\n"
++    printLine(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
++        "MODE JOINT|CART; O/S H/L; SPEED FEED\r\n"
+         "HOLD GO CANCEL STATUS HELP; REC PLAY HOME A B C BTN 1..4\r\n"
+-        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR ORDER\r\n"
++        "TEACH START/DRAWZ/TEACHZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR UNDO ORDER\r\n"
+         "DRAW POLY/CURVE/LINE/SHAPE N/TRIANGLE/Z/V"));
++    printLine(F("PICK SET/SHOW/SAVE/LOAD/CLEAR/SPEED/WAIT A..C 1..8 (SRC=2 DST=6)"));
+ 
+ }
+ bool angleTriple(char* line) {
+@@ -99,7 +102,7 @@ void executeLine(char* line) {
+     if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
+     float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
+     const char* c=tokens[0];
+-    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0"));
++    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0FEED\0"));
+     float shortcut;
+     if(count==2 && parseNumber(c,shortcut) && numbers) { printIK(solveIK(shortcut,v[0])); return; }
+     if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
+@@ -117,7 +120,7 @@ void executeLine(char* line) {
+             if(!cartesianCalibrationValid()) { rejectControl(ControlError::Uncalibrated); printControlError(); return; }
+             IKResult3D ik=solveIK3D(p);
+             if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); }
+-            else { Serial.print(F("IK3 ")); printDecimal(ik.j0); Serial.print(' '); printDecimal(ik.j1); Serial.print(' '); printDecimal(ik.j2); Serial.println(); }
++            else { printText(F("IK3 ")); printDecimal(ik.j0); printChar(' '); printDecimal(ik.j1); printChar(' '); printDecimal(ik.j2); printNewline(); }
+         }
+         return;
+     }
+@@ -133,9 +136,9 @@ void executeLine(char* line) {
+         else invalid();
+         return;
+     }
+-    if(count==2 && numbers && op==7) {
++    if(count==2 && numbers && (op==7 || op==17)) {
+         if(isMotionBusy()) result(rejectControl(ControlError::Busy));
+-        else if(setAutomaticSpeed(v[0])) result(true);
++        else if(op==7?setAutomaticSpeed(v[0]):setDrawingFeed(v[0])) result(true);
+         else invalid();
+         return;
+     }
+@@ -146,7 +149,7 @@ void executeLine(char* line) {
+         else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:hardwareConfig.gripClosed; result(startJointMove(p)); }
+     }
+     else if(op==12) { if(!pauseMotion(millis())) holdArm(); result(true); }
+-    else if(op==13) { if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
++    else if(op==13) { if(isPickSaving()) { result(rejectControl(ControlError::Busy)); return; } if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
+     else if(op==14) {
+         if(isRecording()) clearRecording();
+         if(drawingTaskActive()) result(cancelAndReturnHome());
+@@ -169,7 +172,7 @@ __attribute__((noinline)) void pollSerial() {
+         if(discardLine) continue;
+         if((c>=32 && c<=126) || c=='\t') {
+             if(serialIndex<SERIAL_BUFFER_SIZE-1) serialBuffer[serialIndex++]=c;
+-            else { discardLine=true; Serial.println(F("ERR command too long")); }
++            else { discardLine=true; printLine(F("ERR command too long")); }
+         } else { discardLine=true; invalid(); }
+     }
+ }
+diff --git a/src/control_error.cpp b/src/control_error.cpp
+index d3c32ad..a552e16 100644
+--- a/src/control_error.cpp
++++ b/src/control_error.cpp
+@@ -1,3 +1,4 @@
++#include "serial_format.h"
+ #include "control_error.h"
+ #ifdef __AVR__
+ #include <avr/pgmspace.h>
+@@ -16,7 +17,7 @@ void clearControlError() { error=ControlError::None; }
+ void printControlError() {
+     uint8_t index=static_cast<uint8_t>(error);
+     if(index>=sizeof(errorOffsets)) index=0;
+-    Serial.print(F("ERR "));
++    printText(F("ERR "));
+ #ifdef __AVR__
+     Serial.println(reinterpret_cast<const __FlashStringHelper*>(errorNames+pgm_read_byte(errorOffsets+index)));
+ #else
+diff --git a/src/control_settings.cpp b/src/control_settings.cpp
+index 620d681..a46ea3f 100644
+--- a/src/control_settings.cpp
++++ b/src/control_settings.cpp
+@@ -1,7 +1,9 @@
+ #include "control_settings.h"
+ #include "config.h"
+ #include <math.h>
+-namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; }
++namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; float drawFeed=25.0f; }
++float drawingFeed() { return drawFeed; }
++bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>40) return false; drawFeed=s; return true; }
+ float manualSpeedScale() { return manualScale; }
+ bool setManualSpeedScale(float s) {
+     if(!isfinite(s) || s<0.75f || s>1.5f) return false;
+@@ -15,4 +17,4 @@ bool setAutomaticSpeed(float s) {
+     if(!isfinite(s) || s<MIN_MOVE_SPEED || s>MAX_MOVE_SPEED) return false;
+     autoSpeed=s; return true;
+ }
+-void resetControlSettings() { manualScale=1; autoSpeed=DEFAULT_MOVE_SPEED; }
++void resetControlSettings() { manualScale=1; autoSpeed=DEFAULT_MOVE_SPEED; drawFeed=25; }
+diff --git a/src/hardware_config.cpp b/src/hardware_config.cpp
+index 6932b4e..3b7cdee 100644
+--- a/src/hardware_config.cpp
++++ b/src/hardware_config.cpp
+@@ -2,6 +2,9 @@
+ #include <math.h>
+ // Enter independently verified hardware measurements here; do not copy nominal
+ // 0..180 limits, startup angles or guessed offsets into valid configurations.
++#ifndef MEARM_NATIVE_TEST
++const
++#endif
+ HardwareConfig hardwareConfig{
+     // J0 Base：首次测试暂时限制在 80~100°
+     {true, 0.0f, 180.0f, 80.0f},
+diff --git a/src/main.cpp b/src/main.cpp
+index 4a08bc8..3e89c3a 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1,3 +1,4 @@
++#include "serial_format.h"
+ #include <Arduino.h>
+ 
+ #include "arm.h"
+@@ -9,6 +10,7 @@
+ #include "recording.h"
+ #include "app_controller.h"
+ #include "button_link.h"
++#include "pick_place.h"
+ 
+ namespace {
+ uint32_t lastControlTime = 0;
+@@ -56,14 +58,15 @@ void setup()
+     perf.lastReportMs = millis();
+ #endif
+ 
+-    Serial.println();
+-    Serial.println(F("MeArm dev; HELP"));
++    printNewline();
++    printLine(F("MeArm dev; HELP"));
+ }
+ 
+ void loop()
+ {
+     pollSerial();
+     pollButtonLink();
++    updatePickPersistence();
+ 
+     // One control clock, one complete output frame; missed ticks never burst.
+     uint32_t now = millis();
+diff --git a/src/manual_control.cpp b/src/manual_control.cpp
+index d5071da..7f22f67 100644
+--- a/src/manual_control.cpp
++++ b/src/manual_control.cpp
+@@ -75,7 +75,7 @@ __attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickIn
+ 
+         // 右摇杆前后 → Z
+         if (markingActive())
+-            point.z = teachSettings().travelZ;
++            point.z = teachSettings().teachZ;
+         else if (in.ry)
+             point.z -= axisVelocity(in.ry, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
+         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;
+diff --git a/src/motion.cpp b/src/motion.cpp
+index f023b0e..39c2a6a 100644
+--- a/src/motion.cpp
++++ b/src/motion.cpp
+@@ -114,10 +114,10 @@ bool drawGoal(uint16_t index,Pose& pose) {
+     if(index>homeCount) return rejectControl(ControlError::Invalid);
+     pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
+ }
+-float maxDifference(const Pose& a,const Pose& b) {
++__attribute__((noinline)) float maxDifference(const Pose& a,const Pose& b) {
+     float d=0; for(uint8_t i=0;i<JointCount;++i) d=max(d,fabsf(a.angles[i]-b.angles[i])); return d;
+ }
+-Pose interpolate(const Pose& a,const Pose& b,float t) {
++__attribute__((noinline)) Pose interpolate(const Pose& a,const Pose& b,float t) {
+     Pose p; for(uint8_t i=0;i<JointCount;++i) p.angles[i]=a.angles[i]+(b.angles[i]-a.angles[i])*t; return p;
+ }
+ bool sampleGoal(uint16_t index,Pose& pose) {
+@@ -129,7 +129,9 @@ bool sampleGoal(uint16_t index,Pose& pose) {
+         pose=index<=hardwareConfig.homeViaCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
+     }
+     if(task.status.kind==TaskKind::PickPlace) {
+-        uint16_t dwell; return getPickStage(task.objectIndex,index-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
++        uint8_t homeCount=hardwareConfig.homeViaCount+1;
++        if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
++        uint16_t dwell; return getPickStage(task.objectIndex,index-homeCount-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
+     }
+     if(task.status.kind==TaskKind::Playback) {
+         RecordedFrame frame; if(!getRecordedFrame(index-1,frame)) return rejectControl(ControlError::NoData);
+@@ -155,14 +157,14 @@ void finish(bool failed=false) {
+     task.segmentLoaded=false; task.endpointQueued=false;
+     if(failed) { holdArm(); printControlError(); }
+     else {
+-        if(kind==TaskKind::LinePreview) Serial.println(F("LINE VALID"));
+-        else if(kind==TaskKind::LineExecution) Serial.println(F("RUNLINE DONE"));
+-        else Serial.println(F("DONE(cmd)"));
++        if(kind==TaskKind::LinePreview) printLine(F("LINE VALID"));
++        else if(kind==TaskKind::LineExecution) printLine(F("RUNLINE DONE"));
++        else printLine(F("DONE(cmd)"));
+     }
+     syncManualTarget(millis());
+ }
+ bool begin(TaskKind kind,uint16_t count) {
+-    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
++    if(isMotionBusy() || hasPendingPose() || isRecording() || isPickSaving()) return rejectControl(ControlError::Busy);
+     if(isArmHeld()) return rejectControl(ControlError::Held);
+     task=MotionTask{}; task.status.kind=kind; task.status.state=MotionState::Validating;
+     task.status.totalWaypoints=count; task.origin=commandedPose(); task.segmentStart=task.origin;
+@@ -184,7 +186,7 @@ __attribute__((noinline)) void validateOne() {
+     Pose p=interpolate(task.segmentStart,task.segmentTarget,static_cast<float>(task.validationSubstep)/task.validationSubsteps), out;
+     if(!prepareOutputPose(p,out)) {
+         rejectControl(ControlError::Unsafe);
+-        if(task.status.kind==TaskKind::LineExecution) Serial.println(F("RUNLINE ABORTED (preflight)"));
++        if(task.status.kind==TaskKind::LineExecution) printLine(F("RUNLINE ABORTED (preflight)"));
+         finish(true); return;
+     }
+     if(task.validationSubstep==task.validationSubsteps) {
+@@ -193,9 +195,9 @@ __attribute__((noinline)) void validateOne() {
+         if(task.status.validatedWaypoints==task.status.totalWaypoints) {
+             if(task.status.kind==TaskKind::LinePreview) finish();
+             else {
+-                task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); Serial.println(F("PATH VALID"));
++                task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); printLine(F("PATH VALID"));
+                 if(task.status.kind==TaskKind::Playback && task.cart.start.x>1) {
+-                    Serial.print(F("PLAY timeScale=")); printDecimal(task.cart.start.x); Serial.println();
++                    printText(F("PLAY timeScale=")); printDecimal(task.cart.start.x); printNewline();
+                 }
+             }
+         }
+@@ -234,11 +236,14 @@ __attribute__((noinline)) void execute(uint32_t now) {
+         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
+         task.elapsed=0; task.segmentLoaded=true;
+         float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
++        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || isDrawingKind(task.status.kind)) speed=DEFAULT_MOVE_SPEED;
++        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
++            speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
+         task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
+         if(isDrawingKind(task.status.kind)) {
+             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
+             float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
+-            float feed=25.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
++            float feed=drawingFeed();
+             task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
+         }
+     }
+@@ -290,11 +295,10 @@ void updateMotion(uint32_t now,bool controlDue) {
+     if(task.endpointQueued && !hasPendingPose()) {
+         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
+         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
+-            task.elapsed=0; task.lastUpdate=now; Serial.println(F("PLAY START"));
+-        }
+-        if(task.status.kind==TaskKind::PickPlace) {
+-            Pose unused; getPickStage(task.objectIndex,task.status.completedWaypoints-1,unused,task.dwellRemaining);
++            task.elapsed=0; task.lastUpdate=now; printLine(F("PLAY START"));
+         }
++        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
++            task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);
+         if(task.status.completedWaypoints==task.status.totalWaypoints && !task.dwellRemaining) { finish(); return; }
+         if(task.dwellRemaining) { task.lastUpdate=now; return; }
+     }
+@@ -321,8 +325,8 @@ bool startHome() {
+     return begin(TaskKind::Home,hardwareConfig.homeViaCount+1);
+ }
+ bool startPickPlace(uint8_t object) {
+-    if(!pickCalibrationValid(object)) return rejectControl(ControlError::Uncalibrated);
+-    if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT)) return false;
++    if(!pickCalibrationValid(object) || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
++    if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT+hardwareConfig.homeViaCount+1)) return false;
+     task.objectIndex=object; return true;
+ }
+ bool startPlayback() {
+@@ -331,7 +335,8 @@ bool startPlayback() {
+     task.cart.start.x=1; return true;
+ }
+ bool cancelAndReturnHome() {
+-    bool lift=drawingTaskActive();
++    // A repeated HOME during draw recovery must retain the required lift.
++    bool lift=drawingTaskActive() || (isMotionBusy() && task.recoveryLift);
+     Pose lifted=commandedPose();
+     if(lift) {
+         Point3D point=solveFK3D(lifted.angles[Base],lifted.angles[Shoulder],lifted.angles[Elbow]);
+diff --git a/src/pick_place.cpp b/src/pick_place.cpp
+index c226cf3..84acaf2 100644
+--- a/src/pick_place.cpp
++++ b/src/pick_place.cpp
+@@ -1,58 +1,181 @@
++#include "serial_format.h"
+ #include "pick_place.h"
+ #include "hardware_config.h"
+-#include <string.h>
++#include "motion.h"
++#include "recording.h"
++#include "control_error.h"
++#include "command_text.h"
++#include "commands.h"
++#include <EEPROM.h>
+ #ifdef __AVR__
+-#include <avr/pgmspace.h>
+-#else
+-#define PROGMEM
++#include <avr/eeprom.h>
+ #endif
+ namespace {
+-// Servo output is integer degrees. Store those exact calibrated commands in
+-// flash; expand to the existing Pose API before all normal motion safety checks.
+-struct PickProgram { bool valid; uint8_t stages[PICK_STAGE_COUNT][JointCount]; uint16_t dwell[PICK_STAGE_COUNT]; };
+-#ifdef __AVR__
+-static_assert(sizeof(PickProgram)==1+PICK_STAGE_COUNT*(JointCount+sizeof(uint16_t)),"unexpected AVR pick table padding");
+-#endif
+-// A/B/C: measured approach, descend, grip, lift, transport, lower, release,
+-// retreat. Set valid only after checking real object/placement trajectories.
+-#ifdef MEARM_NATIVE_TEST
+-PickProgram programs[3]{};
+-#else
+-const PickProgram programs[3] PROGMEM={};
+-#endif
+-void readProgram(uint8_t object,uint8_t stage,Pose& p,uint16_t& dwell) {
+-#ifdef __AVR__
+-    for(uint8_t i=0;i<JointCount;++i) p.angles[i]=pgm_read_byte(&programs[object].stages[stage][i]);
+-    dwell=pgm_read_word(&programs[object].dwell[stage]);
+-#else
+-    for(uint8_t i=0;i<JointCount;++i) p.angles[i]=programs[object].stages[stage][i];
+-    dwell=programs[object].dwell[stage];
+-#endif
++// 3 masks + 24 stages (four integer angles, deg/s, 10 ms dwell units).
++// Two committed slots and an unpublished edit area; no program RAM copy.
++constexpr uint8_t PROGRAM_BYTES=49, PAYLOAD_BYTES=147, HEADER_BYTES=8;
++constexpr uint16_t SLOT_BYTES=155, WORK=310;
++constexpr uint8_t VERSION=1, COMMITTED=0xA5;
++static_assert(WORK+PAYLOAD_BYTES<=1024,"pick EEPROM exceeds ATmega328P");
++static __attribute__((noinline)) uint8_t readByte(uint16_t at) { return EEPROM.read(at); }
++static __attribute__((noinline)) void writeByte(uint16_t at,uint8_t value) { EEPROM.update(at,value); }
++bool saving=false;
++uint8_t activeSlot=255,writeSlot=0,writeStep=0;
++uint16_t generation=0,writeCrc=0;
++uint16_t crcByte(uint16_t crc,uint8_t value) {
++    crc^=value;
++    for(uint8_t i=0;i<8;++i) crc=(crc>>1)^((crc&1)?0xA001:0);
++    return crc;
+ }
++uint16_t address(uint8_t object,uint8_t stage) { return WORK+object*PROGRAM_BYTES+1+stage*6; }
++uint16_t readWord(uint16_t at) { return readByte(at)|(static_cast<uint16_t>(readByte(at+1))<<8); }
++bool validSlot(uint8_t slot) {
++    uint16_t base=slot*SLOT_BYTES;
++    if(readByte(base)!=0x4D || readByte(base+1)!=VERSION ||
++       readByte(base+6)!=PAYLOAD_BYTES || readByte(base+7)!=COMMITTED) return false;
++    uint16_t crc=crcByte(crcByte(0xFFFF,readByte(base+2)),readByte(base+3));
++    for(uint8_t i=0;i<PAYLOAD_BYTES;++i) {
++        uint8_t value=readByte(base+HEADER_BYTES+i);
++        crc=crcByte(crc,value);
++        uint8_t field=i%PROGRAM_BYTES;
++        if(field && (readByte(base+HEADER_BYTES+(i/PROGRAM_BYTES)*PROGRAM_BYTES)&(1<<((field-1)/6)))) {
++            uint8_t member=(field-1)%6;
++            if((member<4 && value>180) || (member==4 && (value<5 || value>90))) return false;
++        }
++    }
++    return crc==readWord(base+4);
+ }
+-bool pickCalibrationValid(uint8_t object) {
+-    if(object>=3 || !gripperCalibrationValid() || !joints[Base].outputEnabled) return false;
++bool editable() {
++    if(saving || isMotionBusy() || isRecording() || hasPendingPose()) return rejectControl(ControlError::Busy);
++    return true;
++}
++void resetWorking() { for(uint8_t i=0;i<3;++i) writeByte(WORK+i*PROGRAM_BYTES,0); }
++int stageNumber(const char* text) {
++    if(text[0]>='1' && text[0]<='8' && text[1]==0) return text[0]-'1';
++    return commandIndex(text,commandNames("APPROACH\0SRC\0GRIP\0LIFT\0TRANSFER\0DST\0RELEASE\0RETREAT\0"));
++}
++bool capture(uint8_t object,uint8_t stage,const Pose& pose) {
++    Pose quantized;
++    if(!prepareOutputPose(pose,quantized)) return rejectControl(ControlError::Unsafe);
++    uint16_t at=address(object,stage),maskAt=WORK+object*PROGRAM_BYTES;
++    uint8_t mask=readByte(maskAt);
++    writeByte(maskAt,mask&~(1<<stage));
++    for(uint8_t i=0;i<JointCount;++i) writeByte(at+i,static_cast<uint8_t>(quantized.angles[i]));
++    writeByte(at+4,60); writeByte(at+5,10);
++    writeByte(maskAt,mask|(1<<stage));
++    return true;
++}
++}
++bool isPickSaving() { return saving; }
++uint8_t pickStageMask(uint8_t object) { return object<3?readByte(WORK+object*PROGRAM_BYTES):0; }
++static __attribute__((noinline)) bool restore() {
++    bool a=validSlot(0),b=validSlot(1);
++    if(!a && !b) return rejectControl(ControlError::NoData);
++    uint16_t ga=readWord(2),gb=readWord(SLOT_BYTES+2);
++    activeSlot=b && (!a || static_cast<int16_t>(gb-ga)>0)?1:0;
++    generation=activeSlot?gb:ga;
++    for(uint8_t i=0;i<PAYLOAD_BYTES;++i) writeByte(WORK+i,readByte(activeSlot*SLOT_BYTES+HEADER_BYTES+i));
++    return true;
++}
++bool loadPickConfiguration() { if(!editable()) return false; holdArm(); return restore(); }
++void initializePickConfiguration() {
++    saving=false; activeSlot=255; generation=0;
++    // Never activate interrupted or unsaved edits after reset.
++    if(!restore()) resetWorking();
++    clearControlError();
++}
++bool savePickConfiguration() {
++    if(!editable()) return false;
++    holdArm(); // Persistence is an explicit stationary operation.
++    writeSlot=activeSlot==0?1:0; ++generation;
++    writeStep=0; writeCrc=crcByte(crcByte(0xFFFF,generation&255),generation>>8); saving=true;
++    return true;
++}
++void updatePickPersistence() {
++    if(!saving) return;
+ #ifdef __AVR__
+-    return pgm_read_byte(&programs[object].valid);
+-#else
+-    return programs[object].valid;
++    if(!eeprom_is_ready()) return;
+ #endif
++    if(writeStep==9+PAYLOAD_BYTES) { activeSlot=writeSlot; saving=false; printLine(F("PICK SAVED; HELD")); return; }
++    uint16_t base=writeSlot*SLOT_BYTES;
++    uint8_t value;
++    uint16_t at;
++    if(writeStep==0) { at=base+7; value=0; }
++    else if(writeStep<=4) {
++        at=base+writeStep-1;
++        value=writeStep==1?0x4D:writeStep==2?VERSION:writeStep==3?generation&255:generation>>8;
++    }
++    else if(writeStep==5) { at=base+6; value=PAYLOAD_BYTES; }
++    else if(writeStep<6+PAYLOAD_BYTES) {
++        uint8_t index=writeStep-6;
++        at=base+HEADER_BYTES+index; value=readByte(WORK+index); writeCrc=crcByte(writeCrc,value);
++    }
++    else if(writeStep<8+PAYLOAD_BYTES) {
++        at=base+4+writeStep-(6+PAYLOAD_BYTES);
++        value=writeStep==6+PAYLOAD_BYTES?writeCrc&255:writeCrc>>8;
++    }
++    else { at=base+7; value=COMMITTED; }
++    writeByte(at,value);
++    ++writeStep;
++}
++bool pickCalibrationValid(uint8_t object) {
++    return pickStageMask(object)==255 && gripperCalibrationValid() && joints[Base].outputEnabled;
+ }
+-bool getPickStage(uint8_t object,uint8_t stage,Pose& p,uint16_t& dwell) {
++uint8_t pickStageSpeed(uint8_t object,uint8_t stage) { return readByte(address(object,stage)+4); }
++uint16_t pickStageDwell(uint8_t object,uint8_t stage) { return static_cast<uint16_t>(readByte(address(object,stage)+5))*10; }
++bool getPickStage(uint8_t object,uint8_t stage,Pose& pose,uint16_t& dwell) {
+     if(stage>=PICK_STAGE_COUNT || !pickCalibrationValid(object)) return false;
+-    readProgram(object,stage,p,dwell); return true;
++    uint8_t open=readByte(address(object,0)+3),closed=readByte(address(object,2)+3),release=readByte(address(object,6)+3);
++    uint8_t grip=readByte(address(object,stage)+3);
++    uint8_t speed=pickStageSpeed(object,stage);
++    if(speed<5 || speed>90 || closed==open || release==closed || grip!=(stage<2?open:stage<6?closed:release)) return false;
++    for(uint8_t i=0;i<Gripper;++i) pose.angles[i]=readByte(address(object,stage)+i);
++    pose.angles[Gripper]=grip;
++    dwell=pickStageDwell(object,stage); return true;
++}
++__attribute__((noinline)) bool executePickCommand(char* const* t,uint8_t count) {
++    if(count<2) return rejectControl(ControlError::Invalid);
++    int op=commandIndex(t[1],commandNames("SET\0SHOW\0SAVE\0LOAD\0CLEAR\0SPEED\0WAIT\0"));
++    if(count==2 && op==2) return savePickConfiguration();
++    if(count==2 && op==3) return loadPickConfiguration();
++    if(count<3 || t[2][1]!=0 || t[2][0]<'A' || t[2][0]>'C') return rejectControl(ControlError::Invalid);
++    uint8_t object=t[2][0]-'A';
++    if(count==3 && op==1) {
++        printText(F("PICK ")); Serial.print(t[2]); printText(F(" mask=")); printlnUnsigned(pickStageMask(object));
++        for(uint8_t stage=0;stage<8;++stage) if(pickStageMask(object)&(1<<stage)) {
++            printUnsigned(stage+1);
++            for(uint8_t i=0;i<6;++i) { printChar(' '); uint16_t v=readByte(address(object,stage)+i); printUnsigned(i==5?v*10:v); }
++            printNewline();
++        }
++        return true;
++    }
++    if(!editable()) return false;
++    if(count==3 && op==4) { writeByte(WORK+object*PROGRAM_BYTES,0); return true; }
++    if(count<4) return rejectControl(ControlError::Invalid);
++    int stage=stageNumber(t[3]);
++    if(stage<0) return rejectControl(ControlError::Invalid);
++    if(count==4 && op==0) {
++        if(!gripperCalibrationValid() || !joints[Base].outputEnabled) return rejectControl(ControlError::Uncalibrated);
++        return capture(object,stage,commandedPose());
++    }
++    if(count==5 && (op==5 || op==6)) {
++        uint16_t v=0; const char* p=t[4];
++        if(!*p || !(pickStageMask(object)&(1<<stage))) return rejectControl(ControlError::Invalid);
++        while(*p) {
++            if(*p<'0' || *p>'9' || v>255) return rejectControl(ControlError::Invalid);
++            v=v*10+(*p++-'0');
++        }
++        if(v>2550) return rejectControl(ControlError::Invalid);
++        if(op==5?(v<5 || v>90):(v%10!=0)) return rejectControl(ControlError::Invalid);
++        writeByte(address(object,stage)+(op==5?4:5),op==5?v:v/10); return true;
++    }
++    return rejectControl(ControlError::Invalid);
+ }
+ #ifdef MEARM_NATIVE_TEST
+ void setSyntheticPickProgram(uint8_t object,const Pose (&poses)[PICK_STAGE_COUNT]) {
+     if(object>=3) return;
+-    programs[object].valid=false;
+-    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) {
+-        Pose quantized;
+-        if(!prepareOutputPose(poses[i],quantized)) return;
+-        for(uint8_t j=0;j<JointCount;++j) programs[object].stages[i][j]=static_cast<uint8_t>(quantized.angles[j]);
+-        programs[object].dwell[i]=100;
+-    }
+-    programs[object].valid=true;
++    writeByte(WORK+object*PROGRAM_BYTES,0);
++    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) if(!capture(object,i,poses[i])) { writeByte(WORK+object*PROGRAM_BYTES,0); return; }
+ }
+-void clearSyntheticPickPrograms() { memset(programs,0,sizeof(programs)); }
++void clearSyntheticPickPrograms() { EEPROM.reset(); }
+ #endif
+diff --git a/src/recording.cpp b/src/recording.cpp
+index cc328ee..123734a 100644
+--- a/src/recording.cpp
++++ b/src/recording.cpp
+@@ -1,6 +1,8 @@
++#include "serial_format.h"
+ #include "recording.h"
+ #include "motion.h"
+ #include "control_error.h"
++#include "pick_place.h"
+ #include <math.h>
+ namespace {
+ RecordedFrame frames[RECORD_CAPACITY];
+@@ -59,10 +61,11 @@ bool observe(const Pose& pose,uint16_t time) {
+ bool finalize() { status.state=RecordState::Ready; printRecordingStatus(); clearControlError(); return true; }
+ }
+ void printRecordingStatus() {
+-    Serial.print(F("REC ")); Serial.print(static_cast<uint8_t>(status.state));
+-    Serial.print(' '); Serial.print(status.duration);
+-    Serial.print(F("ms n=")); Serial.print(status.count);
+-    Serial.print(F(" err<=")); Serial.print(status.errorBound);
++    printText(F("REC ")); printUnsigned(static_cast<uint8_t>(status.state));
++    printChar(' '); printUnsigned(status.duration);
++    printText(F("ms n=")); printUnsigned(status.count);
++    printText(F(" err<=")); printUnsigned(status.errorBound);
++    if(status.state==RecordState::Ready && status.duration<=10000) printText(F(" SHORT"));
+     Serial.println(status.degraded?F(" DEGRADED"):F(" deg"));
+ }
+ bool isRecording() { return status.state==RecordState::Arming || status.state==RecordState::Recording; }
+@@ -74,13 +77,14 @@ bool getRecordedFrame(uint8_t index,RecordedFrame& out) {
+     out=frames[index]; return true;
+ }
+ bool startRecording(uint32_t now) {
+-    if(isRecording() || isMotionBusy() || hasPendingPose()) return rejectControl(ControlError::Busy);
++    if(isRecording() || isMotionBusy() || hasPendingPose() || isPickSaving()) return rejectControl(ControlError::Busy);
+     if(isArmHeld()) return rejectControl(ControlError::Held);
++    if(hasRecording()) printLine(F("REC OVERWRITE"));
+     status=RecordingStatus{}; status.state=RecordState::Arming;
+-    startedAt=now; reportedSecond=0; Serial.println(F("REC ARMING 3")); clearControlError(); return true;
++    startedAt=now; reportedSecond=0; printLine(F("REC ARMING 3")); clearControlError(); return true;
+ }
+ bool stopRecording(uint32_t now) {
+-    if(status.state==RecordState::Arming) { clearRecording(); Serial.println(F("REC CANCEL")); return true; }
++    if(status.state==RecordState::Arming) { clearRecording(); printLine(F("REC CANCEL")); return true; }
+     if(!isRecording()) return rejectControl(ControlError::NoData);
+     if(!observe(commandedPose(),min(static_cast<uint32_t>(now-startedAt),static_cast<uint32_t>(UINT16_MAX)))) return false;
+     return finalize();
+@@ -91,22 +95,22 @@ __attribute__((noinline)) void updateRecording(uint32_t now,const Pose& pose) {
+     if(status.state==RecordState::Arming) {
+         if(elapsed<RECORD_ARMING_MS) {
+             uint8_t second=elapsed/1000;
+-            if(second!=reportedSecond) { reportedSecond=second; Serial.print(F("REC ARMING ")); Serial.println(3-second); }
++            if(second!=reportedSecond) { reportedSecond=second; printText(F("REC ARMING ")); printlnUnsigned(3-second); }
+             return;
+         }
+         // Start at the actual observation, never backdate an unobserved pose.
+         startedAt=lastSample=now; reportedSecond=0;
+         status.state=RecordState::Recording; status.errorBound=0;
+         if(!observe(pose,0)) { printControlError(); return; }
+-        Serial.println(F("REC START 0ms")); return;
++        printLine(F("REC START 0ms")); return;
+     }
+     if(now-lastSample<RECORD_INTERVAL_MS) return;
+     lastSample=now;
+     if(!observe(pose,min(elapsed,static_cast<uint32_t>(UINT16_MAX)))) { printControlError(); return; }
+     uint8_t second=status.duration/1000;
+     if(second!=reportedSecond) {
+-        if(second>=10 && reportedSecond<10) Serial.println(F("REC 10s; B2 SAVE"));
++        if(second>=10 && reportedSecond<10) printLine(F("REC 10s; B2 SAVE"));
+         reportedSecond=second; printRecordingStatus();
+     }
+-    if(elapsed>=RECORD_MAX_MS) { Serial.println(F("REC MAX")); finalize(); }
++    if(elapsed>=RECORD_MAX_MS) { printLine(F("REC MAX")); finalize(); }
+ }
+diff --git a/src/serial_format.cpp b/src/serial_format.cpp
+index 31c9d89..fef35e9 100644
+--- a/src/serial_format.cpp
++++ b/src/serial_format.cpp
+@@ -18,3 +18,10 @@ void printDecimal(float value,uint8_t digits) {
+         Serial.print(static_cast<char>('0'+fraction%10));
+     }
+ }
++
++__attribute__((noinline)) void printText(const __FlashStringHelper* p) { Serial.print(p); }
++__attribute__((noinline)) void printLine(const __FlashStringHelper* p) { Serial.println(p); }
++__attribute__((noinline)) void printChar(char c) { Serial.print(c); }
++__attribute__((noinline)) void printNewline() { Serial.println(); }
++__attribute__((noinline)) void printUnsigned(uint16_t n) { Serial.print(n); }
++__attribute__((noinline)) void printlnUnsigned(uint16_t n) { Serial.println(n); }
+diff --git a/src/teaching.cpp b/src/teaching.cpp
+index bcdbc0c..c04cca4 100644
+--- a/src/teaching.cpp
++++ b/src/teaching.cpp
+@@ -5,6 +5,7 @@
+ #include "motion.h"
+ #include "recording.h"
+ #include "control_error.h"
++#include "pick_place.h"
+ #include <math.h>
+ namespace {
+ TeachPoint points[TEACH_POINT_COUNT];
+@@ -12,7 +13,7 @@ uint8_t order[TEACH_POINT_COUNT]={0,1,2,3,4},count=0;
+ TeachSettings settings{};
+ bool active=false,marking=false;
+ bool mutableNow() {
+-    if(isMotionBusy() || hasPendingPose() || isRecording()) return rejectControl(ControlError::Busy);
++    if(isMotionBusy() || hasPendingPose() || isRecording() || isPickSaving()) return rejectControl(ControlError::Busy);
+     return true;
+ }
+ Point3D currentPoint() {
+@@ -34,21 +35,22 @@ bool beginTeach() {
+     if(!setControlMode(ControlMode::Cartesian)) return false;
+     active=true; marking=false; syncManualTarget(millis()); return true;
+ }
+-bool captureTeachHeight(bool drawing) {
++static bool captureHeight(float& z,bool& valid) {
+     if(!mutableNow()) return false;
+     if(!active || marking) return rejectControl(ControlError::Invalid);
+     Point3D p=currentPoint(); if(!isfinite(p.z)) return rejectControl(ControlError::Uncalibrated);
+-    if(drawing) { settings.drawZ=p.z; settings.drawValid=true; }
+-    else { settings.travelZ=p.z; settings.travelValid=true; }
++    z=p.z; valid=true;
+     return true;
+ }
++bool captureTeachHeight(bool drawing) { return drawing?captureHeight(settings.drawZ,settings.drawValid):captureHeight(settings.travelZ,settings.travelValid); }
++bool captureTeachAlignment() { return captureHeight(settings.teachZ,settings.teachValid); }
+ bool beginMarking() {
+     if(!mutableNow()) return false;
+-    if(!active || !drawSettingsValid()) return rejectControl(ControlError::Uncalibrated);
++    if(!active || !drawSettingsValid() || !settings.teachValid || !isfinite(settings.teachZ) || settings.teachZ<=settings.drawZ || settings.teachZ>settings.travelZ) return rejectControl(ControlError::Uncalibrated);
+     Point3D p=currentPoint();
+     // Do not silently move vertically when entering marking. Capture travelZ at
+-    // this pose, then enter with the joystick centered.
+-    if(fabsf(p.z-settings.travelZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
++    // this pose, then explicitly capture TEACHZ and enter centered.
++    if(fabsf(p.z-settings.teachZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
+     marking=true; syncManualTarget(millis()); return true;
+ }
+ bool markTeachPoint() {
+@@ -66,6 +68,15 @@ bool clearTeachPoints() {
+     if(!mutableNow()) return false;
+     count=0; marking=false; for(uint8_t i=0;i<5;++i) order[i]=i; return true;
+ }
++bool undoTeachPoint() {
++    if(!mutableNow()) return false;
++    if(!markingActive() || !count) return rejectControl(ControlError::NoData);
++    --count;
++    uint8_t out=0;
++    for(uint8_t i=0;i<=count;++i) if(order[i]!=count) order[out++]=order[i];
++    order[count]=count;
++    return true;
++}
+ bool exitTeach() {
+     if(!mutableNow()) return false;
+     active=marking=false; syncManualTarget(millis()); return true;
+diff --git a/test/native/EEPROM.h b/test/native/EEPROM.h
+new file mode 100644
+index 0000000..209f75c
+--- /dev/null
++++ b/test/native/EEPROM.h
+@@ -0,0 +1,11 @@
++#pragma once
++#include <stdint.h>
++#include <string.h>
++struct EEPROMStub {
++    uint8_t bytes[1024];
++    EEPROMStub() { reset(); }
++    uint8_t read(int at) const { return bytes[at]; }
++    void update(int at,uint8_t value) { bytes[at]=value; }
++    void reset() { memset(bytes,255,sizeof(bytes)); }
++};
++extern EEPROMStub EEPROM;
+diff --git a/test/native/nano_link_tests.cpp b/test/native/nano_link_tests.cpp
+index 19991b7..3ec6ecc 100644
+--- a/test/native/nano_link_tests.cpp
++++ b/test/native/nano_link_tests.cpp
+@@ -1,4 +1,5 @@
+ #include "Arduino.h"
++#include "EEPROM.h"
+ #include "button_link.h"
+ #include "button_protocol.h"
+ #include "pin_uart.h"
+@@ -12,6 +13,7 @@ std::vector<int> attachedPins;
+ std::vector<uint32_t> delayCalls;
+ int analogValues[4]={506,519,515,519};
+ SerialStub Serial;
++EEPROMStub EEPROM;
+ void setup(); void loop();
+ namespace {
+ std::vector<uint8_t> rx;
+diff --git a/test/native/sprint_tests.cpp b/test/native/sprint_tests.cpp
+index ca6f20f..b186aaa 100644
+--- a/test/native/sprint_tests.cpp
++++ b/test/native/sprint_tests.cpp
+@@ -1,4 +1,5 @@
+ #include "Arduino.h"
++#include "EEPROM.h"
+ #include "arm.h"
+ #include "commands.h"
+ #include "config.h"
+@@ -29,6 +30,7 @@ std::vector<int> attachedPins;
+ std::vector<uint32_t> delayCalls;
+ int analogValues[4] = {506, 519, 515, 519};
+ SerialStub Serial;
++EEPROMStub EEPROM;
+ void setup();
+ void loop();
+ namespace {
+@@ -125,7 +127,7 @@ void testParser() {
+     CHECK(contains("J=120 60") || contains("J=90 120 60 50"));
+     Serial.output.clear(); send("HELP");
+     for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
+-    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==5);
++    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==6);
+     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
+         Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
+     }
+@@ -366,7 +368,7 @@ void testHomeAndPick() {
+     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+     hardwareConfig.home.angles[Shoulder]=110;
+     CHECK(startHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
+-    Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; }
++    Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; poses[i].angles[Gripper]=i<2 || i>=6?80:30; }
+     setSyntheticPickProgram(0,poses); setSyntheticPickProgram(1,poses); setSyntheticPickProgram(2,poses);
+     CHECK(onButtonPressed(1)); CHECK(!onButtonPressed(1)); finishTask();
+     CHECK(onButtonPressed(1)); finishTask(); CHECK(onButtonPressed(1)); finishTask();
+@@ -401,7 +403,7 @@ void testPackedPickCommands() {
+     fresh(); syntheticCalibration();
+     hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
+     Pose poses[PICK_STAGE_COUNT];
+-    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110.75f+i; }
++    for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110.75f+i; poses[i].angles[Gripper]=i<2 || i>=6?80:30; }
+     setSyntheticPickProgram(0,poses); CHECK(pickCalibrationValid(0));
+     for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) {
+         Pose unpacked; uint16_t dwell;
+@@ -430,21 +432,97 @@ void testMotionPayloadTransitions() {
+     CHECK(!isArmHeld()); CHECK(cancelAndReturnHome()); finishTask();
+     CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
+ }
++void testRuntimePickPersistence() {
++    fresh(); send("PICK LOAD"); CHECK(contains("NO_DATA") && isArmHeld()); send("GO");
++    send("PICK SET A SRC"); CHECK(contains("UNCALIBRATED") && pickStageMask(0)==0);
++    syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
++    initializeArm(); advance(); advance();
++    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
++    // Eight independently taught accepted command poses; SRC/DST alone cannot run.
++    send("PICK SET A SRC"); send("PICK SET A DST");
++    CHECK(pickStageMask(0)==34 && pickStageMask(1)==0 && !startPickPlace(0));
++    const char* stages[]={"APPROACH","SRC","GRIP","LIFT","TRANSFER","DST","RELEASE","RETREAT"};
++    for(uint8_t i=0;i<8;++i) {
++        Pose p=commandedPose(); p.angles[Gripper]=i<2 || i>=6?80:30;
++        CHECK(requestPose(p) && applyPendingPose());
++        send(std::string("PICK SET A ")+stages[i]); CHECK(!isMotionBusy());
++    }
++    CHECK(pickStageMask(0)==255 && pickCalibrationValid(0));
++    send("PICK SPEED A 3 40"); send("PICK WAIT A GRIP 200");
++    CHECK(pickStageSpeed(0,2)==40 && pickStageDwell(0,2)==200);
++    // Different objects may need different measured clamping angles.
++    Pose poses[8];
++    for(uint8_t i=0;i<8;++i) { poses[i]=commandedPose(); poses[i].angles[Gripper]=i<2 || i>=6?80:50; }
++    setSyntheticPickProgram(2,poses);
++    Pose custom; uint16_t dwell;
++    CHECK(getPickStage(2,2,custom,dwell) && custom.angles[Gripper]==50);
++    poses[4].angles[Gripper]=55; setSyntheticPickProgram(2,poses);
++    CHECK(!getPickStage(2,4,custom,dwell)); // Do not open/change grip during carry.
++    send("PICK CLEAR C");
++    for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
++        Serial.output.clear(); send(bad); CHECK(contains("INVALID"));
++    }
++    // Saving freezes manual/business events but continues the PC loop.
++    servoWrites.clear(); send("PICK SAVE"); CHECK(isPickSaving() && isArmHeld());
++    send("GO"); send("BTN 2"); CHECK(isArmHeld() && !isRecording());
++    CHECK(!startRecording(simulatedTime)); CHECK(!beginTeach());
++    for(int i=0;i<200 && isPickSaving();++i) advance();
++    CHECK(!isPickSaving() && contains("PICK SAVED; HELD") && servoWrites.empty());
++    uint8_t baseline[1024]; memcpy(baseline,EEPROM.bytes,1024);
++    send("PICK CLEAR A"); CHECK(pickStageMask(0)==0); send("PICK LOAD"); CHECK(pickStageMask(0)==255);
++    // Real boot has a pending startup frame. Valid data must still restore.
++    initializeArm(); CHECK(hasPendingPose()); initializeApplication();
++    CHECK(pickStageMask(0)==255 && pickStageSpeed(0,2)==40);
++    CHECK(applyPendingPose()); holdArm();
++    // Every interrupted write boundary retains the old committed slot.
++    for(int cut=0;cut<=156;++cut) {
++        memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
++        send("PICK CLEAR A"); send("PICK SET B SRC"); CHECK(savePickConfiguration());
++        for(int i=0;i<cut;++i) updatePickPersistence();
++        initializePickConfiguration();
++        CHECK(pickStageMask(0)==(cut==156?0:255));
++        CHECK(pickStageMask(1)==(cut==156?2:0));
++        CHECK(pickStageMask(2)==0);
++    }
++    // Corrupt any byte of the sole slot: reject, including version, sequence,
++    // CRC, commit marker, masks, angles, speed and timing.
++    for(int byte=0;byte<155;++byte) {
++        memcpy(EEPROM.bytes,baseline,1024); EEPROM.bytes[byte]^=1;
++        initializePickConfiguration(); CHECK(pickStageMask(0)==0 && !loadPickConfiguration());
++    }
++    memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
++    send("PICK SET B SRC"); CHECK(savePickConfiguration());
++    while(isPickSaving()) updatePickPersistence();
++    uint8_t twoSlots[1024]; memcpy(twoSlots,EEPROM.bytes,1024);
++    for(int byte=155;byte<310;++byte) {
++        memcpy(EEPROM.bytes,twoSlots,1024); EEPROM.bytes[byte]^=1;
++        initializePickConfiguration(); CHECK(pickStageMask(0)==255 && pickStageMask(1)==0);
++    }
++    memcpy(EEPROM.bytes,baseline,1024); initializePickConfiguration();
++    send("GO"); CHECK(startPickPlace(0)); servoWrites.clear();
++    send("PICK CLEAR A"); CHECK(pickStageMask(0)==255 && lastControlError()==ControlError::Busy);
++    finishTask(); CHECK(!isArmHeld());
++    // All phases preflight before first movement, even corrupt runtime edits.
++    EEPROM.bytes[310+1+7*6+1]=20; EEPROM.bytes[310+1+7*6+2]=127;
++    servoWrites.clear(); CHECK(startPickPlace(0)); finishTask();
++    CHECK(isArmHeld() && servoWrites.empty() && lastControlError()==ControlError::Unsafe);
++    clearSyntheticPickPrograms(); initializePickConfiguration();
++}
+ void testManualFrameOwnership() {
+     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+     CHECK(setControlMode(ControlMode::Cartesian)); advance();
+     Point3D before=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+-    for(uint8_t i=0;i<25;++i) {
++    for(uint8_t i=0;i<5;++i) {
+         simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{0,1,0,0}); CHECK(applyPendingPose());
+     }
+     Point3D after=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+-    CHECK(after.x-before.x< -2 && after.x-before.x> -8); // 5 mm ideal, integer Servo quantization.
++    CHECK(fabs((after.x-before.x)+0.1f*MANUAL_CART_SLOW)<3.0f); // 5 mm ideal, integer Servo quantization.
+     CHECK(fabs(after.y-before.y)<2); // Forward/back must not command lateral motion.
+-    for(uint8_t i=0;i<25;++i) {
++    for(uint8_t i=0;i<5;++i) {
+         simulatedTime+=20; updateManualControl(simulatedTime,JoystickInput{1,0,0,0}); CHECK(applyPendingPose());
+     }
+     Point3D lateral=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+-    CHECK(lateral.y-after.y>2 && lateral.y-after.y<8); // Left/right controls world Y.
++    CHECK(fabs((lateral.y-after.y)-0.1f*MANUAL_CART_SLOW)<3.0f); // Left/right controls world Y.
+     CHECK(fabs(lateral.x-after.x)<2);
+     Pose target=commandedPose(); target.angles[Shoulder]=110;
+     CHECK(startJointMove(target)); servoWrites.clear();
+@@ -477,7 +555,8 @@ void prepareTeachFive() {
+     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
+     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
+-    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(markingActive());
++    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("UNCALIBRATED"));
++    send("TEACH TEACHZ"); send("BTN 3"); CHECK(markingActive());
+     for(uint8_t i=0;i<5;++i) {
+         p=commandedPose(); p.angles[Base]=80+5*i;
+         CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
+@@ -486,10 +565,18 @@ void prepareTeachFive() {
+ }
+ void testTeachAndDraw() {
+     fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
++    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
++    CHECK(teachPointCount()==4); TeachPoint undone;
++    CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,hardwareConfig.home.angles[Elbow]);
++    CHECK(fabs(undone.x-surviving.x)<0.001f);
++    send("MARK"); CHECK(teachPointCount()==5 && getTeachPoint(4,undone));
++    Point3D readded=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(undone.x-readded.x)<0.001f);
++    send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("BUSY"));
++    finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("NO_DATA"));
+     prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
+     send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
+     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
+-    Point3D expected=solveFK3D(100,123,60); CHECK(fabs(ordered.x-expected.x)<0.001f);
++    Point3D expected=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(ordered.x-expected.x)<0.001f);
+     send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
+     send("MARK"); CHECK(contains("BUSY")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());
+@@ -537,6 +624,74 @@ void testFailureAndLatency() {
+     float value; CHECK(parseNumber("-.25",value) && value==-0.25f);
+     CHECK(!parseNumber("1e2",value)); CHECK(!parseNumber("--1",value));
+ }
++void testFrozenTaskSpeeds() {
++    // Draw timing is invariant under global SPEED and joystick H/L.
++    uint32_t duration[3];
++    for(uint8_t variant=0;variant<3;++variant) {
++        prepareTeachFive(); send(variant==0?"SPEED 5":"SPEED 90");
++        if(variant) send("H");
++        send(variant==2?"FEED 20":"FEED 10");
++        CHECK(drawingFeed()==(variant==2?20:10));
++        send("DRAW POLY");
++        while(motionStatus().state==MotionState::Validating) advance();
++        uint32_t start=simulatedTime;
++        send("FEED 30"); CHECK(contains("BUSY") && drawingFeed()==(variant==2?20:10));
++        finishTask(); duration[variant]=simulatedTime-start;
++    }
++    CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
++    fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==25);
++    send("FEED 40.01"); CHECK(contains("INVALID") && drawingFeed()==25);
++    send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
++    send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
++    // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.
++    for(uint8_t variant=0;variant<2;++variant) {
++        fresh(); hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
++        hardwareConfig.home.angles[Shoulder]=100;
++        CHECK(setAutomaticSpeed(variant?90:5)); adjustManualSpeedScale(variant);
++        CHECK(startHome()); while(motionStatus().state==MotionState::Validating) advance();
++        uint32_t start=simulatedTime; finishTask(); duration[variant]=simulatedTime-start;
++    }
++    CHECK(duration[0]==duration[1]);
++    fresh(); send("REC START"); runFor(3000); runFor(1000); send("REC STOP");
++    CHECK(hasRecording() && contains("SHORT"));
++    send("REC START"); CHECK(contains("REC OVERWRITE") && isRecording());
++    clearRecording();
++}
++void testIntegrationContracts() {
++    prepareTeachFive();
++    TeachPoint saved[5]; for(uint8_t i=0;i<5;++i) CHECK(getTeachPoint(i,saved[i]));
++    send("ORDER 3 1 5 2 4");
++    const uint8_t permutation[]={2,0,4,1,3};
++    for(uint8_t i=0;i<5;++i) { TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x && p.y==saved[permutation[i]].y); }
++    for(const char* draw:{"DRAW POLY","DRAW CURVE"}) {
++        servoWrites.clear(); send(draw); CHECK(drawingTaskActive());
++        while(motionStatus().state==MotionState::Validating) advance();
++        CHECK(motionStatus().state==MotionState::Running);
++        runFor(200); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
++        size_t heldWrites=servoWrites.size(); runFor(1200); CHECK(servoWrites.size()==heldWrites);
++        send("REC START"); send("A"); send("ORDER 1 2 3 4 5"); CHECK(contains("BUSY") && !isRecording());
++        send("BTN 2"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
++        for(uint8_t i=0;i<5;++i) {
++            TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x);
++            float nearest=10000;
++            for(size_t k=0;k+3<servoWrites.size();k+=4) {
++                CHECK(isSafePlanarPose(servoWrites[k+1].angle,servoWrites[k+2].angle));
++                Point3D q=solveFK3D(servoWrites[k].angle,servoWrites[k+1].angle,servoWrites[k+2].angle);
++                if(fabs(q.z-teachSettings().drawZ)<2) nearest=min(nearest,pointDistance({q.x,q.y},p));
++            }
++            CHECK(nearest<3); // Simulation command-space tolerance, not measured paper accuracy.
++        }
++    }
++    send("DRAW POLY"); while(motionStatus().state==MotionState::Validating) advance();
++    runFor(200); send("BTN 3"); CHECK(motionStatus().kind==TaskKind::Home);
++    uint16_t recoveryWaypoints=motionStatus().totalWaypoints;
++    send("HOME"); CHECK(motionStatus().totalWaypoints==recoveryWaypoints); // Repeated request cannot drop lift.
++    finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
++    send("DRAW LINE 1000 1000 2000 2000"); finishTask();
++    CHECK(isArmHeld() && teachPointCount()==5); send("GO"); send("DRAW CURVE"); finishTask(); CHECK(!isArmHeld());
++    send("TEACH EXIT"); CHECK(!teachingActive() && teachPointCount()==5);
++    send("DRAW POLY"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
++}
+ void testDecimalDiagnostics() {
+     fresh();
+     for(uint8_t digits=0;digits<=2;++digits) {
+@@ -556,6 +711,6 @@ int main() {
+     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
+     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
+     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
+-    testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
++    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testIntegrationContracts(); testDecimalDiagnostics();
+     std::cout << "PASS: " << assertions << " checks\n";
+ }

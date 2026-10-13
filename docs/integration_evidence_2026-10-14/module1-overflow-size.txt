@@ -1,0 +1,15 @@
+D:\Develop\MeArm-Bringup-2026-10-12\.pio\build\uno_nano_link\firmware.elf  :
+section                     size      addr
+.data                        278   8388864
+.text                      33500         0
+.bss                        1020   8389142
+.comment                      17         0
+.note.gnu.avr.deviceinfo      64         0
+.debug_aranges               544         0
+.debug_info                 4703         0
+.debug_abbrev               1782         0
+.debug_line                 2904         0
+.debug_str                   520         0
+Total                      45332
+
+
