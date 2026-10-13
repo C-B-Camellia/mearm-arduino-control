@@ -657,6 +657,41 @@ void testFrozenTaskSpeeds() {
     send("REC START"); CHECK(contains("REC OVERWRITE") && isRecording());
     clearRecording();
 }
+void testIntegrationContracts() {
+    prepareTeachFive();
+    TeachPoint saved[5]; for(uint8_t i=0;i<5;++i) CHECK(getTeachPoint(i,saved[i]));
+    send("ORDER 3 1 5 2 4");
+    const uint8_t permutation[]={2,0,4,1,3};
+    for(uint8_t i=0;i<5;++i) { TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x && p.y==saved[permutation[i]].y); }
+    for(const char* draw:{"DRAW POLY","DRAW CURVE"}) {
+        servoWrites.clear(); send(draw); CHECK(drawingTaskActive());
+        while(motionStatus().state==MotionState::Validating) advance();
+        CHECK(motionStatus().state==MotionState::Running);
+        runFor(200); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+        size_t heldWrites=servoWrites.size(); runFor(1200); CHECK(servoWrites.size()==heldWrites);
+        send("REC START"); send("A"); send("ORDER 1 2 3 4 5"); CHECK(contains("BUSY") && !isRecording());
+        send("BTN 2"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
+        for(uint8_t i=0;i<5;++i) {
+            TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x);
+            float nearest=10000;
+            for(size_t k=0;k+3<servoWrites.size();k+=4) {
+                CHECK(isSafePlanarPose(servoWrites[k+1].angle,servoWrites[k+2].angle));
+                Point3D q=solveFK3D(servoWrites[k].angle,servoWrites[k+1].angle,servoWrites[k+2].angle);
+                if(fabs(q.z-teachSettings().drawZ)<2) nearest=min(nearest,pointDistance({q.x,q.y},p));
+            }
+            CHECK(nearest<3); // Simulation command-space tolerance, not measured paper accuracy.
+        }
+    }
+    send("DRAW POLY"); while(motionStatus().state==MotionState::Validating) advance();
+    runFor(200); send("BTN 3"); CHECK(motionStatus().kind==TaskKind::Home);
+    uint16_t recoveryWaypoints=motionStatus().totalWaypoints;
+    send("HOME"); CHECK(motionStatus().totalWaypoints==recoveryWaypoints); // Repeated request cannot drop lift.
+    finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
+    send("DRAW LINE 1000 1000 2000 2000"); finishTask();
+    CHECK(isArmHeld() && teachPointCount()==5); send("GO"); send("DRAW CURVE"); finishTask(); CHECK(!isArmHeld());
+    send("TEACH EXIT"); CHECK(!teachingActive() && teachPointCount()==5);
+    send("DRAW POLY"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
+}
 void testDecimalDiagnostics() {
     fresh();
     for(uint8_t digits=0;digits<=2;++digits) {
@@ -676,6 +711,6 @@ int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
-    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testDecimalDiagnostics();
+    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testIntegrationContracts(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

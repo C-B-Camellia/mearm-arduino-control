@@ -335,7 +335,8 @@ bool startPlayback() {
     task.cart.start.x=1; return true;
 }
 bool cancelAndReturnHome() {
-    bool lift=drawingTaskActive();
+    // A repeated HOME during draw recovery must retain the required lift.
+    bool lift=drawingTaskActive() || (isMotionBusy() && task.recoveryLift);
     Pose lifted=commandedPose();
     if(lift) {
         Point3D point=solveFK3D(lifted.angles[Base],lifted.angles[Shoulder],lifted.angles[Elbow]);
