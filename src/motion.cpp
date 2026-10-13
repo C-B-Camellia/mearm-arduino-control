@@ -114,10 +114,10 @@ bool drawGoal(uint16_t index,Pose& pose) {
     if(index>homeCount) return rejectControl(ControlError::Invalid);
     pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true;
 }
-float maxDifference(const Pose& a,const Pose& b) {
+__attribute__((noinline)) float maxDifference(const Pose& a,const Pose& b) {
     float d=0; for(uint8_t i=0;i<JointCount;++i) d=max(d,fabsf(a.angles[i]-b.angles[i])); return d;
 }
-Pose interpolate(const Pose& a,const Pose& b,float t) {
+__attribute__((noinline)) Pose interpolate(const Pose& a,const Pose& b,float t) {
     Pose p; for(uint8_t i=0;i<JointCount;++i) p.angles[i]=a.angles[i]+(b.angles[i]-a.angles[i])*t; return p;
 }
 bool sampleGoal(uint16_t index,Pose& pose) {
@@ -157,9 +157,9 @@ void finish(bool failed=false) {
     task.segmentLoaded=false; task.endpointQueued=false;
     if(failed) { holdArm(); printControlError(); }
     else {
-        if(kind==TaskKind::LinePreview) Serial.println(F("LINE VALID"));
-        else if(kind==TaskKind::LineExecution) Serial.println(F("RUNLINE DONE"));
-        else Serial.println(F("DONE(cmd)"));
+        if(kind==TaskKind::LinePreview) printLine(F("LINE VALID"));
+        else if(kind==TaskKind::LineExecution) printLine(F("RUNLINE DONE"));
+        else printLine(F("DONE(cmd)"));
     }
     syncManualTarget(millis());
 }
@@ -186,7 +186,7 @@ __attribute__((noinline)) void validateOne() {
     Pose p=interpolate(task.segmentStart,task.segmentTarget,static_cast<float>(task.validationSubstep)/task.validationSubsteps), out;
     if(!prepareOutputPose(p,out)) {
         rejectControl(ControlError::Unsafe);
-        if(task.status.kind==TaskKind::LineExecution) Serial.println(F("RUNLINE ABORTED (preflight)"));
+        if(task.status.kind==TaskKind::LineExecution) printLine(F("RUNLINE ABORTED (preflight)"));
         finish(true); return;
     }
     if(task.validationSubstep==task.validationSubsteps) {
@@ -195,9 +195,9 @@ __attribute__((noinline)) void validateOne() {
         if(task.status.validatedWaypoints==task.status.totalWaypoints) {
             if(task.status.kind==TaskKind::LinePreview) finish();
             else {
-                task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); Serial.println(F("PATH VALID"));
+                task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); printLine(F("PATH VALID"));
                 if(task.status.kind==TaskKind::Playback && task.cart.start.x>1) {
-                    Serial.print(F("PLAY timeScale=")); printDecimal(task.cart.start.x); Serial.println();
+                    printText(F("PLAY timeScale=")); printDecimal(task.cart.start.x); printNewline();
                 }
             }
         }
@@ -236,14 +236,14 @@ __attribute__((noinline)) void execute(uint32_t now) {
         if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.elapsed=0; task.segmentLoaded=true;
         float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
-        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace) speed=DEFAULT_MOVE_SPEED;
+        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || isDrawingKind(task.status.kind)) speed=DEFAULT_MOVE_SPEED;
         if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
             speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
         task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
         if(isDrawingKind(task.status.kind)) {
             Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
             float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
-            float feed=25.0f*automaticSpeed()/DEFAULT_MOVE_SPEED;
+            float feed=drawingFeed();
             task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
         }
     }
@@ -295,7 +295,7 @@ void updateMotion(uint32_t now,bool controlDue) {
     if(task.endpointQueued && !hasPendingPose()) {
         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
-            task.elapsed=0; task.lastUpdate=now; Serial.println(F("PLAY START"));
+            task.elapsed=0; task.lastUpdate=now; printLine(F("PLAY START"));
         }
         if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
             task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);

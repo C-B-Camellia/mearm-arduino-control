@@ -1,3 +1,4 @@
+#include "serial_format.h"
 #include "control_error.h"
 #ifdef __AVR__
 #include <avr/pgmspace.h>
@@ -16,7 +17,7 @@ void clearControlError() { error=ControlError::None; }
 void printControlError() {
     uint8_t index=static_cast<uint8_t>(error);
     if(index>=sizeof(errorOffsets)) index=0;
-    Serial.print(F("ERR "));
+    printText(F("ERR "));
 #ifdef __AVR__
     Serial.println(reinterpret_cast<const __FlashStringHelper*>(errorNames+pgm_read_byte(errorOffsets+index)));
 #else

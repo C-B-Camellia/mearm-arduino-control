@@ -450,6 +450,15 @@ void testRuntimePickPersistence() {
     CHECK(pickStageMask(0)==255 && pickCalibrationValid(0));
     send("PICK SPEED A 3 40"); send("PICK WAIT A GRIP 200");
     CHECK(pickStageSpeed(0,2)==40 && pickStageDwell(0,2)==200);
+    // Different objects may need different measured clamping angles.
+    Pose poses[8];
+    for(uint8_t i=0;i<8;++i) { poses[i]=commandedPose(); poses[i].angles[Gripper]=i<2 || i>=6?80:50; }
+    setSyntheticPickProgram(2,poses);
+    Pose custom; uint16_t dwell;
+    CHECK(getPickStage(2,2,custom,dwell) && custom.angles[Gripper]==50);
+    poses[4].angles[Gripper]=55; setSyntheticPickProgram(2,poses);
+    CHECK(!getPickStage(2,4,custom,dwell)); // Do not open/change grip during carry.
+    send("PICK CLEAR C");
     for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
         Serial.output.clear(); send(bad); CHECK(contains("INVALID"));
     }
@@ -546,7 +555,8 @@ void prepareTeachFive() {
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
-    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(markingActive());
+    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("UNCALIBRATED"));
+    send("TEACH TEACHZ"); send("BTN 3"); CHECK(markingActive());
     for(uint8_t i=0;i<5;++i) {
         p=commandedPose(); p.angles[Base]=80+5*i;
         CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
@@ -555,10 +565,18 @@ void prepareTeachFive() {
 }
 void testTeachAndDraw() {
     fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
+    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
+    CHECK(teachPointCount()==4); TeachPoint undone;
+    CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,hardwareConfig.home.angles[Elbow]);
+    CHECK(fabs(undone.x-surviving.x)<0.001f);
+    send("MARK"); CHECK(teachPointCount()==5 && getTeachPoint(4,undone));
+    Point3D readded=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(undone.x-readded.x)<0.001f);
+    send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("BUSY"));
+    finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("NO_DATA"));
     prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
     send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
-    Point3D expected=solveFK3D(100,123,60); CHECK(fabs(ordered.x-expected.x)<0.001f);
+    Point3D expected=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(ordered.x-expected.x)<0.001f);
     send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
     send("MARK"); CHECK(contains("BUSY")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());
@@ -606,6 +624,39 @@ void testFailureAndLatency() {
     float value; CHECK(parseNumber("-.25",value) && value==-0.25f);
     CHECK(!parseNumber("1e2",value)); CHECK(!parseNumber("--1",value));
 }
+void testFrozenTaskSpeeds() {
+    // Draw timing is invariant under global SPEED and joystick H/L.
+    uint32_t duration[3];
+    for(uint8_t variant=0;variant<3;++variant) {
+        prepareTeachFive(); send(variant==0?"SPEED 5":"SPEED 90");
+        if(variant) send("H");
+        send(variant==2?"FEED 20":"FEED 10");
+        CHECK(drawingFeed()==(variant==2?20:10));
+        send("DRAW POLY");
+        while(motionStatus().state==MotionState::Validating) advance();
+        uint32_t start=simulatedTime;
+        send("FEED 30"); CHECK(contains("BUSY") && drawingFeed()==(variant==2?20:10));
+        finishTask(); duration[variant]=simulatedTime-start;
+    }
+    CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
+    fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==25);
+    send("FEED 40.01"); CHECK(contains("INVALID") && drawingFeed()==25);
+    send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
+    send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
+    // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.
+    for(uint8_t variant=0;variant<2;++variant) {
+        fresh(); hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+        hardwareConfig.home.angles[Shoulder]=100;
+        CHECK(setAutomaticSpeed(variant?90:5)); adjustManualSpeedScale(variant);
+        CHECK(startHome()); while(motionStatus().state==MotionState::Validating) advance();
+        uint32_t start=simulatedTime; finishTask(); duration[variant]=simulatedTime-start;
+    }
+    CHECK(duration[0]==duration[1]);
+    fresh(); send("REC START"); runFor(3000); runFor(1000); send("REC STOP");
+    CHECK(hasRecording() && contains("SHORT"));
+    send("REC START"); CHECK(contains("REC OVERWRITE") && isRecording());
+    clearRecording();
+}
 void testDecimalDiagnostics() {
     fresh();
     for(uint8_t digits=0;digits<=2;++digits) {
@@ -625,6 +676,6 @@ int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
-    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testDecimalDiagnostics();
+    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

@@ -75,7 +75,7 @@ __attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickIn
 
         // 右摇杆前后 → Z
         if (markingActive())
-            point.z = teachSettings().travelZ;
+            point.z = teachSettings().teachZ;
         else if (in.ry)
             point.z -= axisVelocity(in.ry, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;

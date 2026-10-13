@@ -1,7 +1,9 @@
 #include "control_settings.h"
 #include "config.h"
 #include <math.h>
-namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; }
+namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; float drawFeed=25.0f; }
+float drawingFeed() { return drawFeed; }
+bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>40) return false; drawFeed=s; return true; }
 float manualSpeedScale() { return manualScale; }
 bool setManualSpeedScale(float s) {
     if(!isfinite(s) || s<0.75f || s>1.5f) return false;
@@ -15,4 +17,4 @@ bool setAutomaticSpeed(float s) {
     if(!isfinite(s) || s<MIN_MOVE_SPEED || s>MAX_MOVE_SPEED) return false;
     autoSpeed=s; return true;
 }
-void resetControlSettings() { manualScale=1; autoSpeed=DEFAULT_MOVE_SPEED; }
+void resetControlSettings() { manualScale=1; autoSpeed=DEFAULT_MOVE_SPEED; drawFeed=25; }

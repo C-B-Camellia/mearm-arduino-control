@@ -1,3 +1,4 @@
+#include "serial_format.h"
 #include <Arduino.h>
 
 #include "arm.h"
@@ -57,8 +58,8 @@ void setup()
     perf.lastReportMs = millis();
 #endif
 
-    Serial.println();
-    Serial.println(F("MeArm dev; HELP"));
+    printNewline();
+    printLine(F("MeArm dev; HELP"));
 }
 
 void loop()

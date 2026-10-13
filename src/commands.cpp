@@ -45,32 +45,33 @@ namespace {
 char serialBuffer[SERIAL_BUFFER_SIZE];
 uint8_t serialIndex=0;
 bool discardLine=false;
-void result(bool success) { if(success) Serial.println(F("OK")); else printControlError(); }
+void result(bool success) { if(success) printLine(F("OK")); else printControlError(); }
 void invalid() { rejectControl(ControlError::Invalid); printControlError(); }
 void printIK(const IKResult& ik) {
     if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); return; }
-    Serial.print(F("IK J1=")); printDecimal(ik.j1); Serial.print(F(" J2=")); printDecimal(ik.j2); Serial.println();
+    printText(F("IK J1=")); printDecimal(ik.j1); printText(F(" J2=")); printDecimal(ik.j2); printNewline();
 }
 void printStatus() {
     MotionStatus s=motionStatus();
     uint8_t enabled=0;
-    Serial.print(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); Serial.print(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
-    Serial.print(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
-    Serial.print(F(" manualScale=")); printDecimal(manualSpeedScale());
-    Serial.print(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
-    Serial.print(F(" task=")); Serial.print(static_cast<int>(s.kind)); Serial.print(F(" phase=")); Serial.print(static_cast<int>(s.state));
-    Serial.print(F(" move=")); Serial.print(s.completedWaypoints); Serial.print('/'); Serial.print(s.totalWaypoints);
-    Serial.print(F(" held=")); Serial.print(isArmHeld()); Serial.print(F(" cal=")); Serial.println(cartesianCalibrationValid());
-    Serial.print(F("enabled=")); Serial.print(enabled); Serial.print(F(" error=")); Serial.println(static_cast<int>(lastControlError()));
+    printText(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); printChar(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
+    printText(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
+    printText(F(" feed=")); printDecimal(drawingFeed(),1);
+    printText(F(" manualScale=")); printDecimal(manualSpeedScale());
+    printText(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
+    printText(F(" task=")); printUnsigned(static_cast<int>(s.kind)); printText(F(" phase=")); printUnsigned(static_cast<int>(s.state));
+    printText(F(" move=")); printUnsigned(s.completedWaypoints); printChar('/'); printUnsigned(s.totalWaypoints);
+    printText(F(" held=")); printUnsigned(isArmHeld()); printText(F(" cal=")); printlnUnsigned(cartesianCalibrationValid());
+    printText(F("enabled=")); printUnsigned(enabled); printText(F(" error=")); printlnUnsigned(static_cast<int>(lastControlError()));
     printApplicationStatus();
 }
 void printHelp() {
-    Serial.println(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
-        "MODE JOINT|CART; O/S H/L; SPEED\r\n"
+    printLine(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
+        "MODE JOINT|CART; O/S H/L; SPEED FEED\r\n"
         "HOLD GO CANCEL STATUS HELP; REC PLAY HOME A B C BTN 1..4\r\n"
-        "TEACH START/DRAWZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR UNDO ORDER\r\n"
+        "TEACH START/DRAWZ/TEACHZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR UNDO ORDER\r\n"
         "DRAW POLY/CURVE/LINE/SHAPE N/TRIANGLE/Z/V"));
-    Serial.println(F("PICK SET/SHOW/SAVE/LOAD/CLEAR/SPEED/WAIT A..C 1..8 (SRC=2 DST=6)"));
+    printLine(F("PICK SET/SHOW/SAVE/LOAD/CLEAR/SPEED/WAIT A..C 1..8 (SRC=2 DST=6)"));
 
 }
 bool angleTriple(char* line) {
@@ -101,7 +102,7 @@ void executeLine(char* line) {
     if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
     float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
     const char* c=tokens[0];
-    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0"));
+    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0FEED\0"));
     float shortcut;
     if(count==2 && parseNumber(c,shortcut) && numbers) { printIK(solveIK(shortcut,v[0])); return; }
     if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
@@ -119,7 +120,7 @@ void executeLine(char* line) {
             if(!cartesianCalibrationValid()) { rejectControl(ControlError::Uncalibrated); printControlError(); return; }
             IKResult3D ik=solveIK3D(p);
             if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); }
-            else { Serial.print(F("IK3 ")); printDecimal(ik.j0); Serial.print(' '); printDecimal(ik.j1); Serial.print(' '); printDecimal(ik.j2); Serial.println(); }
+            else { printText(F("IK3 ")); printDecimal(ik.j0); printChar(' '); printDecimal(ik.j1); printChar(' '); printDecimal(ik.j2); printNewline(); }
         }
         return;
     }
@@ -135,9 +136,9 @@ void executeLine(char* line) {
         else invalid();
         return;
     }
-    if(count==2 && numbers && op==7) {
+    if(count==2 && numbers && (op==7 || op==17)) {
         if(isMotionBusy()) result(rejectControl(ControlError::Busy));
-        else if(setAutomaticSpeed(v[0])) result(true);
+        else if(op==7?setAutomaticSpeed(v[0]):setDrawingFeed(v[0])) result(true);
         else invalid();
         return;
     }
@@ -171,7 +172,7 @@ __attribute__((noinline)) void pollSerial() {
         if(discardLine) continue;
         if((c>=32 && c<=126) || c=='\t') {
             if(serialIndex<SERIAL_BUFFER_SIZE-1) serialBuffer[serialIndex++]=c;
-            else { discardLine=true; Serial.println(F("ERR command too long")); }
+            else { discardLine=true; printLine(F("ERR command too long")); }
         } else { discardLine=true; invalid(); }
     }
 }
