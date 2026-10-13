@@ -1,4 +1,5 @@
 #include "Arduino.h"
+#include "EEPROM.h"
 #include "button_link.h"
 #include "button_protocol.h"
 #include "pin_uart.h"
@@ -12,6 +13,7 @@ std::vector<int> attachedPins;
 std::vector<uint32_t> delayCalls;
 int analogValues[4]={506,519,515,519};
 SerialStub Serial;
+EEPROMStub EEPROM;
 void setup(); void loop();
 namespace {
 std::vector<uint8_t> rx;

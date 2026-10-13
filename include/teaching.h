@@ -16,6 +16,7 @@ bool captureTeachHeight(bool drawing);
 bool beginMarking();
 bool markTeachPoint();
 bool clearTeachPoints();
+bool undoTeachPoint();
 bool exitTeach();
 void initializeTeaching();
 uint8_t teachPointCount();

@@ -20,7 +20,11 @@ struct HardwareConfig {
     uint8_t homeViaCount;
     Pose homeVia[2];
 };
+#ifdef MEARM_NATIVE_TEST
 extern HardwareConfig hardwareConfig;
+#else
+extern const HardwareConfig hardwareConfig;
+#endif
 void configureCalibratedJoints();
 bool cartesianCalibrationValid();
 bool gripperCalibrationValid();

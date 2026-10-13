@@ -2,6 +2,9 @@
 #include <math.h>
 // Enter independently verified hardware measurements here; do not copy nominal
 // 0..180 limits, startup angles or guessed offsets into valid configurations.
+#ifndef MEARM_NATIVE_TEST
+const
+#endif
 HardwareConfig hardwareConfig{
     // J0 Base：首次测试暂时限制在 80~100°
     {true, 0.0f, 180.0f, 80.0f},
