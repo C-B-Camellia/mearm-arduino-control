@@ -166,6 +166,10 @@ bool sampleGoal(uint16_t index,Pose& pose) {
 }
 void finish(bool failed=false) {
     TaskKind kind=task.status.kind;
+    if(failed && task.status.state==MotionState::Validating) {
+        printText(F("PATH ERR ")); printUnsigned(task.status.validatedWaypoints+1);
+        printChar('/'); printlnUnsigned(task.validationSubstep);
+    }
     task.status.state=MotionState::Idle;
     task.segmentLoaded=false; task.endpointQueued=false;
     if(failed) { holdArm(); printControlError(); }
@@ -185,6 +189,7 @@ bool begin(TaskKind kind,uint16_t count) {
 }
 __attribute__((noinline)) void validateOne() {
     if(!task.segmentLoaded) {
+        task.validationSubstep=0;
         if(!sampleGoal(task.status.validatedWaypoints+1,task.segmentTarget)) { finish(true); return; }
         task.validationSubsteps=max(1,static_cast<int>(ceilf(maxDifference(task.segmentStart,task.segmentTarget))));
         task.validationSubstep=0; task.segmentLoaded=true;

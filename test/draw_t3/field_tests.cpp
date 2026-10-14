@@ -1,6 +1,7 @@
 #include "teaching.h"
 static const TeachPoint fieldPoints[5]={{106.56f,26.37f},{147.29f,22.12f},{159.81f,-17.72f},{129.64f,-29.16f},{107.31f,-11.54f}};
-static bool fieldPoint(uint8_t i,TeachPoint& p) { if(i>=5) return false; p=fieldPoints[i];return true; }
+static float fieldShift=0;
+static bool fieldPoint(uint8_t i,TeachPoint& p) { if(i>=5) return false; p=fieldPoints[i];p.x+=fieldShift;return true; }
 static uint8_t fieldCount() { return 5; }
 #define getTeachPoint fieldPoint
 #define teachPointCount fieldCount
@@ -52,5 +53,8 @@ int main(){ measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=
  CHECK(startBasicShape(ShapeId::N,{106.56f,-29.16f},{159.81f,26.37f}));preflight();
  unsigned shapeGuard=0;while(isMotionBusy()&&shapeGuard++<10000){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);}
  CHECK(!isMotionBusy() && !isArmHeld());
+ reset();heights();setCommand(hardwareConfig.home);servoWrites.clear();Serial.output.clear();fieldShift=300;CHECK(startCurve());
+ while(task.status.state==MotionState::Validating)updateMotion(simulatedTime,false);
+ CHECK(isArmHeld() && servoWrites.empty());CHECK(Serial.output.find("PATH ERR 3/0")!=std::string::npos);fieldShift=0;
  std::cout<<"PASS boundary replay and held HOME "<<assertions<<'\n';
 }
