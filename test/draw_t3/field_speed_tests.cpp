@@ -26,7 +26,11 @@ void measure(int kind,float feed,bool pause=false) {
    CHECK(false);
 #endif
   }
-  if(pause && !paused && before>down){CHECK(pauseMotion(simulatedTime));size_t n=servoWrites.size();simulatedTime+=1000;updateMotion(simulatedTime,true);CHECK(applyPendingPose());CHECK(servoWrites.size()==n);CHECK(resumeMotion(simulatedTime));paused=true;}
+  bool pauseHere=before>down;
+#ifdef MEARM_FIVE_FAST
+  if(kind==1 && MEARM_POLY_HOLD_MS)pauseHere=task.dwellRemaining>0;
+#endif
+  if(pause && !paused && pauseHere){CHECK(pauseMotion(simulatedTime));size_t n=servoWrites.size();simulatedTime+=1000;updateMotion(simulatedTime,true);CHECK(applyPendingPose());CHECK(servoWrites.size()==n);CHECK(resumeMotion(simulatedTime));paused=true;}
  }
  CHECK(!isMotionBusy()&&!isArmHeld());
 #ifdef MEARM_FIVE_FAST

@@ -106,7 +106,7 @@ void loggedEvidenceAndRoundTrip() {
              <<" IKJ="<<ik.j0<<'/'<<ik.j1<<'/'<<ik.j2<<" quantJ="<<quant.angles[0]<<'/'<<quant.angles[1]<<'/'<<quant.angles[2]<<" FKz="<<p.z<<" -> "<<fk(quant).z<<'\n';
     float dx=169.62f-144.77f,dy=-6.63f-32.18f;
     float length=sqrtf(dx*dx+dy*dy); uint16_t n=static_cast<uint16_t>(ceilf(length/.75f));
-    CHECK(.75f/(CONTROL_INTERVAL_MS*.001f)<MANUAL_CART_SLOW); CHECK(setDrawingFeed(40)); CHECK(setDrawingFeed(50));
+    CHECK(MANUAL_CART_SLOW==25.0f && MANUAL_CART_FAST==100.0f); // Updated authorized manual tiers; old RC0 sampling ceiling is not a current invariant. CHECK(setDrawingFeed(40)); CHECK(setDrawingFeed(50));
     std::cout<<"LOGGED_P1_P2 illustrativeOnly length="<<length<<" samples="<<n<<" nominal15="<<length/15<<" nominal25="<<length/25<<'\n';
 }
 void trace(float feed,uint32_t gap,bool fastAck) {

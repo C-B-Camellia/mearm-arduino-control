@@ -1,0 +1,40 @@
+LINE normal vs fast: identical 474 accepted integer target rows (feeds 15/25/80).
+hold=60
+METRIC kind=0 feed=15 total=4300 stroke=1340 first=1340 writes=114 maxIntDelta=2 holds=0
+METRIC kind=1 feed=15 total=12680 stroke=9800 first=2740 writes=207 maxIntDelta=2 holds=3
+METRIC kind=2 feed=15 total=12860 stroke=9980 first=2800 writes=209 maxIntDelta=2 holds=0
+METRIC kind=0 feed=25 total=3120 stroke=800 first=800 writes=113 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=8200 stroke=5960 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=8280 stroke=6040 first=1700 writes=201 maxIntDelta=2 holds=0
+METRIC kind=0 feed=80 total=2060 stroke=280 first=280 writes=98 maxIntDelta=2 holds=0
+METRIC kind=1 feed=80 total=3740 stroke=2020 first=520 writes=165 maxIntDelta=2 holds=3
+METRIC kind=2 feed=80 total=3680 stroke=1960 first=560 writes=168 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=9200 stroke=6960 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=9280 stroke=7040 first=2700 writes=201 maxIntDelta=2 holds=0
+PASS field speed 6281
+hold=80
+METRIC kind=0 feed=15 total=4300 stroke=1340 first=1340 writes=114 maxIntDelta=2 holds=0
+METRIC kind=1 feed=15 total=12740 stroke=9860 first=2740 writes=207 maxIntDelta=2 holds=3
+METRIC kind=2 feed=15 total=12860 stroke=9980 first=2800 writes=209 maxIntDelta=2 holds=0
+METRIC kind=0 feed=25 total=3120 stroke=800 first=800 writes=113 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=8260 stroke=6020 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=8280 stroke=6040 first=1700 writes=201 maxIntDelta=2 holds=0
+METRIC kind=0 feed=80 total=2060 stroke=280 first=280 writes=98 maxIntDelta=2 holds=0
+METRIC kind=1 feed=80 total=3800 stroke=2080 first=520 writes=165 maxIntDelta=2 holds=3
+METRIC kind=2 feed=80 total=3680 stroke=1960 first=560 writes=168 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=9260 stroke=7020 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=9280 stroke=7040 first=2700 writes=201 maxIntDelta=2 holds=0
+PASS field speed 6293
+hold=100
+METRIC kind=0 feed=15 total=4300 stroke=1340 first=1340 writes=114 maxIntDelta=2 holds=0
+METRIC kind=1 feed=15 total=12800 stroke=9920 first=2740 writes=207 maxIntDelta=2 holds=3
+METRIC kind=2 feed=15 total=12860 stroke=9980 first=2800 writes=209 maxIntDelta=2 holds=0
+METRIC kind=0 feed=25 total=3120 stroke=800 first=800 writes=113 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=8320 stroke=6080 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=8280 stroke=6040 first=1700 writes=201 maxIntDelta=2 holds=0
+METRIC kind=0 feed=80 total=2060 stroke=280 first=280 writes=98 maxIntDelta=2 holds=0
+METRIC kind=1 feed=80 total=3860 stroke=2140 first=520 writes=165 maxIntDelta=2 holds=3
+METRIC kind=2 feed=80 total=3680 stroke=1960 first=560 writes=168 maxIntDelta=2 holds=0
+METRIC kind=1 feed=25 total=9320 stroke=7080 first=1660 writes=201 maxIntDelta=2 holds=3
+METRIC kind=2 feed=25 total=9280 stroke=7040 first=2700 writes=201 maxIntDelta=2 holds=0
+PASS field speed 6305

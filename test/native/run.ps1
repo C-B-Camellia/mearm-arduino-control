@@ -1,7 +1,8 @@
 param(
     [string] $Compiler = 'g++',
     [string] $LegacySource = '',
-    [string] $Suite = 'sprint_tests.cpp'
+    [string] $Suite = 'sprint_tests.cpp',
+    [string[]] $ExtraFlags = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +12,7 @@ New-Item -ItemType Directory -Force -Path $buildDirectory | Out-Null
 
 $arguments = @('-std=c++11', '-O2', '-Wall', '-Wextra', '-Werror', '-DMEARM_NATIVE_TEST',
     '-I', $PSScriptRoot, '-I', (Join-Path $projectRoot 'include'))
+$arguments += $ExtraFlags
 if ($LegacySource) {
     $resolvedSource = (Resolve-Path -LiteralPath $LegacySource).Path.Replace('\', '/')
     $reference = "namespace legacy {`n#include `"$resolvedSource`"`n}`n"
