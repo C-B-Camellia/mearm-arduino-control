@@ -34,5 +34,18 @@ int main(){ measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=
  std::cout<<"HOME held="<<isArmHeld()<<" error="<<int(lastControlError())<<" J="<<commandedPose().angles[1]<<','<<commandedPose().angles[2]<<'\n';
  reset();Pose a={{74,42,106,58}},b={{75,43,105,58}},q;unsigned fails=0;
  for(int i=0;i<=100;++i){Pose p=interpolate(a,b,i/100.f);if(!prepareOutputPose(p,q))++fails;}
- std::cout<<"BOUNDARY interpolate failures="<<fails<<"/101\n";
+ std::cout<<"BOUNDARY interpolate failures="<<fails<<"/101\n"; CHECK(fails==0);
+ reset(); CHECK(exitTeach());setCommand(a);CHECK(startRecording(simulatedTime));simulatedTime+=3000;updateRecording(simulatedTime,commandedPose());
+ for(unsigned i=1;i<=750;++i){simulatedTime+=20;setCommand(i%2?a:b);updateRecording(simulatedTime,commandedPose());}
+ ++simulatedTime;CHECK(stopRecording(simulatedTime));CHECK(recordingStatus().duration>=15000 && recordingStatus().count<=80);
+ CHECK(startPlayback());unsigned loops=0;bool paused=false;
+ while(isMotionBusy() && loops++<10000){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);
+  if(!paused && task.status.completedWaypoints>2){CHECK(pauseMotion(simulatedTime));simulatedTime+=5000;CHECK(resumeMotion(simulatedTime));paused=true;}}
+ CHECK(!isMotionBusy() && !isArmHeld());
+ for(int shoulder=20;shoulder<=108;shoulder+=11){reset();setCommand({{74,float(shoulder),float(148-shoulder),58}});holdArm();CHECK(cancelAndReturnHome());
+  while(task.status.state==MotionState::Validating)updateMotion(simulatedTime,false);
+  simulatedTime+=5;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);
+  unsigned guard=0;while(isMotionBusy()&&guard++<10000){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);}
+  CHECK(!isArmHeld() && commandedPose().angles[1]==120 && commandedPose().angles[2]==60);}
+ std::cout<<"PASS boundary replay and held HOME "<<assertions<<'\n';
 }

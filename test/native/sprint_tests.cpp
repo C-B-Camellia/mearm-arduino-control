@@ -76,7 +76,8 @@ void testSafety() {
     Pose before=commandedPose(), candidate=before, output{};
     candidate.angles[Shoulder]=20.9f; candidate.angles[Elbow]=127.1f;
     CHECK(isSafePose(candidate));
-    CHECK(!prepareOutputPose(candidate,output)); CHECK(!requestPose(candidate));
+    CHECK(prepareOutputPose(candidate,output)); CHECK(isSafePose(output));
+    CHECK(output.angles[Shoulder]+output.angles[Elbow]==148);
     CHECK(servoWrites.empty() && !hasPendingPose());
     CHECK(commandedPose().angles[Shoulder]==before.angles[Shoulder]);
     candidate.angles[Shoulder]=20; candidate.angles[Elbow]=128;
@@ -414,7 +415,7 @@ void testPackedPickCommands() {
         Pose safe; CHECK(prepareOutputPose(unpacked,safe));
     }
     poses[7].angles[Shoulder]=20.9f; poses[7].angles[Elbow]=127.1f;
-    setSyntheticPickProgram(0,poses); CHECK(!pickCalibrationValid(0)); // Float-safe, quantization-unsafe.
+    setSyntheticPickProgram(0,poses); CHECK(pickCalibrationValid(0)); // Legal lower boundary now quantizes safely.
     poses[7].angles[Shoulder]=std::numeric_limits<float>::quiet_NaN();
     setSyntheticPickProgram(1,poses); CHECK(!pickCalibrationValid(1));
     CHECK(servoWrites.empty());

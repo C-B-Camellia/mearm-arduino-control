@@ -139,6 +139,10 @@ bool prepareOutputPose(const Pose& candidate, Pose& output)
     for (uint8_t i = 0; i < JointCount; ++i) {
         quantized.angles[i] = static_cast<int>(candidate.angles[i]);
     }
+    // Two independent floors can turn a legal 148.x sum into 147.
+    // Restore the integer lower sum, then recheck every physical limit.
+    if(quantized.angles[Shoulder]+quantized.angles[Elbow]<J1_J2_MIN_SUM)
+        quantized.angles[Elbow]=J1_J2_MIN_SUM-quantized.angles[Shoulder];
     if (!canApplyPose(quantized)) return false;
     output = quantized;
     return true;
