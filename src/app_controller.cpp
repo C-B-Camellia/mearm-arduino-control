@@ -175,4 +175,7 @@ void printApplicationStatus() {
     printText(F("workflow=")); printlnUnsigned(static_cast<int>(currentWorkflow()));
     printRecordingStatus();
     printText(F("points=")); printUnsigned(teachPointCount()); printText(F(" paper=")); printlnUnsigned(drawSettingsValid());
+    const TeachSettings& z=teachSettings();
+    printText(F("Z=")); printDecimal(z.drawZ); printChar('/'); printDecimal(z.teachZ); printChar('/'); printDecimal(z.travelZ);
+    printChar(' '); printlnUnsigned(z.drawValid | (z.teachValid<<1) | (z.travelValid<<2));
 }

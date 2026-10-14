@@ -25,7 +25,8 @@ struct MotionTask {
     uint32_t elapsed,lastUpdate,duration;
     uint16_t validationSubstep,validationSubsteps;
     uint16_t dwellRemaining;
-    uint8_t objectIndex;
+    // PickPlace owns objectIndex; drawing owns the mandatory endpoint flag.
+    union { uint8_t objectIndex; bool drawCheckpoint; };
     ShapeId shape;
     bool recoveryLift;
     bool segmentLoaded,endpointQueued;
@@ -77,6 +78,7 @@ bool pointPose(const Point3D& point,Pose& pose) {
     pose.angles[Base]=ik.j0; pose.angles[Shoulder]=ik.j1; pose.angles[Elbow]=ik.j2; return true;
 }
 bool drawGoal(uint16_t index,Pose& pose) {
+    task.drawCheckpoint=true;
     uint8_t homeCount=hardwareConfig.homeViaCount+1;
     if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
     index-=homeCount;
@@ -94,6 +96,7 @@ bool drawGoal(uint16_t index,Pose& pose) {
         uint16_t steps=strokeSteps(segment);
         if(!steps) return rejectControl(ControlError::Invalid);
         if(index<=steps) {
+            task.drawCheckpoint=index==steps; // Keep all taught vertices/corners.
             float t=static_cast<float>(index)/steps;
             TeachPoint a,b,c,d;
             if(task.status.kind==TaskKind::Curve) {
@@ -229,30 +232,48 @@ __attribute__((noinline)) void executePlayback(uint32_t now) {
 __attribute__((noinline)) void execute(uint32_t now) {
     if(task.endpointQueued) return;
     if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) { executePlayback(now); return; }
-    if(!task.segmentLoaded) {
-        Point3D previous{};
-        if(isDrawingKind(task.status.kind)) previous=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
-        task.segmentStart=commandedPose();
-        if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
-        task.elapsed=0; task.segmentLoaded=true;
-        float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
-        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || isDrawingKind(task.status.kind)) speed=DEFAULT_MOVE_SPEED;
-        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
-            speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
-        task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
-        if(isDrawingKind(task.status.kind)) {
-            Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
-            float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
-            float feed=drawingFeed();
-            task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
-        }
-    }
+    bool drawing=isDrawingKind(task.status.kind);
     uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
-    task.elapsed=min(task.duration,task.elapsed+dt);
-    float t=static_cast<float>(task.elapsed)/task.duration;
-    Pose p=interpolate(task.segmentStart,task.segmentTarget,t);
-    if(!requestPose(p)) { rejectControl(ControlError::Unsafe); finish(true); return; }
-    task.endpointQueued=task.elapsed==task.duration;
+    // Bounded work, one output frame. Fine geometric samples may share a tick;
+    // mandatory HOME/pen/vertex endpoints still wait for output acknowledgement.
+    for(uint8_t advanced=0;advanced<16;++advanced) {
+        if(!task.segmentLoaded) {
+            // Preserve the continuous drawing trajectory across integer outputs.
+            task.segmentStart=drawing?task.segmentTarget:commandedPose();
+            uint16_t index=task.status.completedWaypoints+1;
+            if(!sampleGoal(index,task.segmentTarget)) { finish(true); return; }
+            if(!drawing) task.elapsed=0;
+            task.segmentLoaded=true;
+            uint16_t penDown=hardwareConfig.homeViaCount+4;
+            uint16_t penUp=task.status.totalWaypoints-hardwareConfig.homeViaCount-1;
+            bool stroke=drawing && index>penDown && index<penUp;
+            float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
+            if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || drawing) speed=DEFAULT_MOVE_SPEED;
+            if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
+                speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
+            task.duration=max(static_cast<uint32_t>(stroke?1:WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
+            // Paper feed limits pen down/stroke/up. HOME, air travel and return
+            // use the existing joint speed instead of the paper feed.
+            if(drawing && index>=penDown && index<=penUp) {
+                Point3D a=solveFK3D(task.segmentStart.angles[Base],task.segmentStart.angles[Shoulder],task.segmentStart.angles[Elbow]);
+                Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
+                float dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
+                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/drawingFeed())));
+            }
+        }
+        task.elapsed+=dt; dt=0;
+        bool reached=task.elapsed>=task.duration;
+        Pose p=interpolate(task.segmentStart,task.segmentTarget,reached?1.0f:static_cast<float>(task.elapsed)/task.duration);
+        // Validate even skipped geometric endpoints; Servo is applied once by main.
+        if(!requestPose(p)) { rejectControl(ControlError::Unsafe); finish(true); return; }
+        if(!reached) return;
+        if(!drawing || task.drawCheckpoint) {
+            task.elapsed=task.duration; task.endpointQueued=true; return;
+        }
+        task.elapsed-=task.duration; ++task.status.completedWaypoints; task.segmentLoaded=false;
+    }
+    // Saturation slows the path instead of accumulating a future catch-up jump.
+    task.elapsed=0;
 }
 }
 bool isMotionBusy() { return task.status.state!=MotionState::Idle; }
@@ -294,6 +315,7 @@ void updateMotion(uint32_t now,bool controlDue) {
     }
     if(task.endpointQueued && !hasPendingPose()) {
         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
+        if(isDrawingKind(task.status.kind)) task.elapsed=0;
         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
             task.elapsed=0; task.lastUpdate=now; printLine(F("PLAY START"));
         }

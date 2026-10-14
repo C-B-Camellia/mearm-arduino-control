@@ -1,4 +1,4 @@
-// Desktop diagnostic only: includes the unmodified executor to observe private
+// Desktop diagnostic only: includes the current executor to observe private
 // phase targets/durations. run.ps1 excludes motion.cpp from the other sources.
 #include "Arduino.h"
 #include "EEPROM.h"
@@ -106,7 +106,7 @@ void loggedEvidenceAndRoundTrip() {
              <<" IKJ="<<ik.j0<<'/'<<ik.j1<<'/'<<ik.j2<<" quantJ="<<quant.angles[0]<<'/'<<quant.angles[1]<<'/'<<quant.angles[2]<<" FKz="<<p.z<<" -> "<<fk(quant).z<<'\n';
     float dx=169.62f-144.77f,dy=-6.63f-32.18f;
     float length=sqrtf(dx*dx+dy*dy); uint16_t n=static_cast<uint16_t>(ceilf(length/.75f));
-    CHECK(.75f/(CONTROL_INTERVAL_MS*.001f)<MANUAL_CART_SLOW); CHECK(setDrawingFeed(40)); CHECK(!setDrawingFeed(50));
+    CHECK(.75f/(CONTROL_INTERVAL_MS*.001f)<MANUAL_CART_SLOW); CHECK(setDrawingFeed(40)); CHECK(setDrawingFeed(50));
     std::cout<<"LOGGED_P1_P2 illustrativeOnly length="<<length<<" samples="<<n<<" nominal15="<<length/15<<" nominal25="<<length/25<<'\n';
 }
 void trace(float feed,uint32_t gap,bool fastAck) {
@@ -118,33 +118,28 @@ void trace(float feed,uint32_t gap,bool fastAck) {
     CHECK(motionStatus().state==MotionState::Running); CHECK(Serial.output.find("PATH VALID")!=std::string::npos);
     CHECK(motionStatus().completedWaypoints==0);
     std::cout<<"TRACE feed="<<feed<<" tickGap="<<gap<<" fastAck="<<fastAck<<" sampleStroke="<<stroke<<" validateCalls="<<validations<<" drawZ="<<teachSettings().drawZ<<" travelZ="<<teachSettings().travelZ<<'\n';
-    std::cout<<"index,phase,xyz,idealLength,deltaDeg,durationMs,ticks,elapsedWallMs,finalQuantZ\n";
-    uint32_t start=simulatedTime,stageStart=start; uint16_t current=1; uint32_t ticks=0;
-    Pose previousIdeal=task.origin;
-    float wholeStrokeTime=0; uint32_t sameFrames=0; Pose previousOutput=commandedPose();
+    uint32_t start=simulatedTime,strokeStart=0,strokeEnd=0,sameFrames=0; Pose previousOutput=commandedPose();
     for(int count=0;isMotionBusy() && count<100000;++count) {
-        simulatedTime+=gap; updateMotion(simulatedTime,true); ++ticks;
+        uint16_t before=motionStatus().completedWaypoints;
+        simulatedTime+=gap; updateMotion(simulatedTime,true);
         bool pending=hasPendingPose(); CHECK(applyPendingPose());
         if(pending) {
             Pose now=commandedPose(); bool same=true; for(int j=0;j<4;++j) if(now.angles[j]!=previousOutput.angles[j]) same=false;
             if(same) ++sameFrames; previousOutput=now;
         }
-        if(task.endpointQueued) {
-            Point3D pa=fk(previousIdeal),pb=fk(task.segmentTarget); float dx=pa.x-pb.x,dy=pa.y-pb.y,dz=pa.z-pb.z;
-            std::cout<<current<<','<<phase(current,stroke)<<','<<pb.x<<'/'<<pb.y<<'/'<<pb.z<<','<<sqrtf(dx*dx+dy*dy+dz*dz)<<','
-                     <<maxDifference(task.segmentStart,task.segmentTarget)<<','<<task.duration<<','<<ticks<<','<<simulatedTime-stageStart<<','<<fk(commandedPose()).z<<'\n';
-            if(current>4 && current<=4+stroke) wholeStrokeTime+=simulatedTime-stageStart;
-            previousIdeal=task.segmentTarget; ++current; stageStart=simulatedTime; ticks=0;
-            if(fastAck) updateMotion(simulatedTime,false);
-        }
+        if(fastAck) updateMotion(simulatedTime,false);
+        uint16_t after=motionStatus().completedWaypoints;
+        if(before<4 && after>=4) strokeStart=simulatedTime;
+        if(before<4+stroke && after>=4+stroke) strokeEnd=simulatedTime;
     }
     CHECK(!isMotionBusy()); CHECK(Serial.output.find("DONE(cmd)")!=std::string::npos);
-    std::cout<<"TOTAL ms="<<simulatedTime-start<<" strokeMs="<<wholeStrokeTime<<" repeatedOutputFrames="<<sameFrames<<'\n';
+    std::cout<<"TOTAL ms="<<simulatedTime-start<<" strokeMs="<<strokeEnd-strokeStart<<" repeatedOutputFrames="<<sameFrames<<'\n';
 }
 }
 int main() {
     measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
     std::cout<<std::fixed<<std::setprecision(5);
+    CHECK(std::string(phase(4,40))=="PEN_DOWN");
     compareCaptures(); quantizationScan(); loggedEvidenceAndRoundTrip(); trace(15,20,true); trace(25,20,true); trace(25,20,false); trace(25,100,true); trace(15,100,true);
     std::cout<<"PASS DRAW T3 diagnostic: "<<assertions<<" checks\n";
 }

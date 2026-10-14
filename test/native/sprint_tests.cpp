@@ -640,7 +640,7 @@ void testFrozenTaskSpeeds() {
     }
     CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
     fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==25);
-    send("FEED 40.01"); CHECK(contains("INVALID") && drawingFeed()==25);
+    send("FEED 100.01"); CHECK(contains("INVALID") && drawingFeed()==25);
     send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
     send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
     // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.

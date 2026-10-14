@@ -3,7 +3,7 @@
 #include <math.h>
 namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; float drawFeed=25.0f; }
 float drawingFeed() { return drawFeed; }
-bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>40) return false; drawFeed=s; return true; }
+bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>MANUAL_CART_FAST) return false; drawFeed=s; return true; }
 float manualSpeedScale() { return manualScale; }
 bool setManualSpeedScale(float s) {
     if(!isfinite(s) || s<0.75f || s>1.5f) return false;
