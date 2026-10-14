@@ -82,7 +82,7 @@ __attribute__((noinline)) void updateManualControl(uint32_t now,const JoystickIn
             point.z -= axisVelocity(in.ry, MANUAL_CART_SLOW, MANUAL_CART_FAST) * dt;
         IKResult3D ik=solveIK3D(point); if(!ik.valid) return;
         candidate.angles[Base]=ik.j0; candidate.angles[Shoulder]=ik.j1; candidate.angles[Elbow]=ik.j2;
-        if(!markingActive() && in.rx && joints[Gripper].outputEnabled)
+        if(!teachingActive() && in.rx && joints[Gripper].outputEnabled)
             candidate.angles[Gripper]=constrain(candidate.angles[Gripper]+axisVelocity(in.rx,MANUAL_JOINT_SLOW,MANUAL_JOINT_FAST)*dt,joints[Gripper].minAngle,joints[Gripper].maxAngle);
         Pose output; if(!prepareOutputPose(candidate,output)) return;
         cartTarget=point;

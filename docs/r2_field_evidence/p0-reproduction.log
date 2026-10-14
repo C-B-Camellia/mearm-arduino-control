@@ -1,0 +1,4 @@
+POLY VALID samples=37 calls=197
+CURVE VALID samples=179 calls=276
+HOME held=0 error=0 J=120,60
+BOUNDARY interpolate failures=99/101
