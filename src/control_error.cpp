@@ -7,9 +7,9 @@
 #endif
 namespace {
 ControlError error=ControlError::None;
-const char errorNames[] PROGMEM="INVALID\0BUSY\0HELD\0UNCALIBRATED\0DISABLED\0UNSAFE\0UNREACHABLE\0FULL\0NO_DATA\0";
-const uint8_t errorOffsets[] PROGMEM={0,8,13,18,31,0,40,47,59,64};
-static_assert(sizeof(errorOffsets)==static_cast<uint8_t>(ControlError::NoData)+1,"error table mismatch");
+const char errorNames[] PROGMEM="INVALID\0BUSY\0HELD\0UNCALIBRATED\0DISABLED\0UNSAFE\0UNREACHABLE\0FULL\0NO_DATA\0GEOMETRY\0";
+const uint8_t errorOffsets[] PROGMEM={0,8,13,18,31,0,40,47,59,64,72};
+static_assert(sizeof(errorOffsets)==static_cast<uint8_t>(ControlError::Geometry)+1,"error table mismatch");
 }
 ControlError lastControlError() { return error; }
 bool rejectControl(ControlError e) { error=e; return false; }

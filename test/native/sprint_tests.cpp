@@ -344,7 +344,7 @@ void testAdaptiveRecording() {
     advance(1000); finishTask(); CHECK(!isArmHeld());
 }
 void testRecordingInputAndErrors() {
-    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA"};
+    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA","GEOMETRY"};
     for(uint8_t i=0;i<sizeof(names)/sizeof(names[0]);++i) {
         Serial.output.clear(); rejectControl(static_cast<ControlError>(i)); printControlError();
         CHECK(Serial.output==std::string("ERR ")+names[i]+"\r\n");

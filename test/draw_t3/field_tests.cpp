@@ -47,5 +47,10 @@ int main(){ measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=
   simulatedTime+=5;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);
   unsigned guard=0;while(isMotionBusy()&&guard++<10000){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);}
   CHECK(!isArmHeld() && commandedPose().angles[1]==120 && commandedPose().angles[2]==60);}
+ reset();heights();setCommand(hardwareConfig.home);servoWrites.clear();
+ CHECK(!startBasicShape(ShapeId::N,{106.56f,22.12f},{147.29f,26.37f}));CHECK(lastControlError()==ControlError::Geometry && !isMotionBusy() && servoWrites.empty());
+ CHECK(startBasicShape(ShapeId::N,{106.56f,-29.16f},{159.81f,26.37f}));preflight();
+ unsigned shapeGuard=0;while(isMotionBusy()&&shapeGuard++<10000){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);}
+ CHECK(!isMotionBusy() && !isArmHeld());
  std::cout<<"PASS boundary replay and held HOME "<<assertions<<'\n';
 }

@@ -403,7 +403,11 @@ bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoi
 }
 }
 bool startDrawLine(const TeachPoint& a,const TeachPoint& b) { return startDrawing(TaskKind::DrawLine,ShapeId::N,a,b); }
-bool startBasicShape(ShapeId shape,const TeachPoint& lo,const TeachPoint& hi) { return startDrawing(TaskKind::DrawShape,shape,lo,hi); }
+bool startBasicShape(ShapeId shape,const TeachPoint& lo,const TeachPoint& hi) {
+    // Reject thin rectangles instead of reporting a near-line as a 2D shape.
+    if(hi.x-lo.x<5.0f || hi.y-lo.y<5.0f) return rejectControl(ControlError::Geometry);
+    return startDrawing(TaskKind::DrawShape,shape,lo,hi);
+}
 bool startPolyline() {
     if(teachPointCount()!=TEACH_POINT_COUNT) return rejectControl(ControlError::NoData);
     return startDrawing(TaskKind::Polyline,ShapeId::N,{},{});
