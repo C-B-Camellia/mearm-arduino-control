@@ -1,0 +1,186 @@
+Processing uno_nano_link (platform: atmelavr; board: uno; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/atmelavr/uno.html
+PLATFORM: Atmel AVR (5.3.0) > Arduino Uno
+HARDWARE: ATMEGA328P 16MHz, 2KB RAM, 31.50KB Flash
+DEBUG: Current (avr-stub) External (avr-stub, simavr)
+PACKAGES: 
+ - framework-arduino-avr @ 5.4.0 
+ - toolchain-atmelavr @ 1.70300.191015 (7.3.0)
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 6 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Servo @ 1.3.0
+|-- SoftwareSerial @ 1.0
+|-- EEPROM @ 2.0
+Building in release mode
+Compiling .pio\build\uno_nano_link\src\app_controller.cpp.o
+Compiling .pio\build\uno_nano_link\src\arm.cpp.o
+Compiling .pio\build\uno_nano_link\src\button_link.cpp.o
+Compiling .pio\build\uno_nano_link\src\command_text.cpp.o
+Compiling .pio\build\uno_nano_link\src\commands.cpp.o
+Compiling .pio\build\uno_nano_link\src\control_error.cpp.o
+Compiling .pio\build\uno_nano_link\src\control_settings.cpp.o
+Compiling .pio\build\uno_nano_link\src\hardware_config.cpp.o
+Compiling .pio\build\uno_nano_link\src\joystick.cpp.o
+Compiling .pio\build\uno_nano_link\src\kinematics.cpp.o
+Compiling .pio\build\uno_nano_link\src\main.cpp.o
+Compiling .pio\build\uno_nano_link\src\manual_control.cpp.o
+Compiling .pio\build\uno_nano_link\src\motion.cpp.o
+Compiling .pio\build\uno_nano_link\src\path_planner.cpp.o
+Compiling .pio\build\uno_nano_link\src\pick_place.cpp.o
+Compiling .pio\build\uno_nano_link\src\pin_uart.cpp.o
+Compiling .pio\build\uno_nano_link\src\recording.cpp.o
+Compiling .pio\build\uno_nano_link\src\serial_format.cpp.o
+Compiling .pio\build\uno_nano_link\src\teaching.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\avr\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\esp32\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\mbed\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\megaavr\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\nrf52\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\renesas\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\sam\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\samd\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\stm32f4\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\xmc\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\libded\Servo\zephyr\Servo.cpp.o
+Compiling .pio\build\uno_nano_link\lib108\SoftwareSerial\SoftwareSerial.cpp.o
+Archiving .pio\build\uno_nano_link\libFrameworkArduinoVariant.a
+Compiling .pio\build\uno_nano_link\FrameworkArduino\CDC.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\HardwareSerial.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\HardwareSerial0.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\HardwareSerial1.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\HardwareSerial2.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\HardwareSerial3.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\IPAddress.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\PluggableUSB.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\Print.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\Stream.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\Tone.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\USBCore.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\WInterrupts.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\WMath.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\WString.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\abi.cpp.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\hooks.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\main.cpp.o
+Archiving .pio\build\uno_nano_link\libded\libServo.a
+Compiling .pio\build\uno_nano_link\FrameworkArduino\new.cpp.o
+Archiving .pio\build\uno_nano_link\lib108\libSoftwareSerial.a
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring_analog.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring_digital.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring_pulse.S.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring_pulse.c.o
+Compiling .pio\build\uno_nano_link\FrameworkArduino\wiring_shift.c.o
+Archiving .pio\build\uno_nano_link\libFrameworkArduino.a
+Linking .pio\build\uno_nano_link\firmware.elf
+Checking size .pio\build\uno_nano_link\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [======    ]  63.4% (used 1299 bytes from 2048 bytes)
+Flash: [==========]  99.7% (used 32168 bytes from 32256 bytes)
+Building .pio\build\uno_nano_link\firmware.hex
+========================= [SUCCESS] Took 2.45 seconds =========================
+
+Processing uno_nano_five_fast (platform: atmelavr; board: uno; framework: arduino)
+--------------------------------------------------------------------------------
+Library Manager: Installing arduino-libraries/Servo
+Unpacking 0% 10% 20% 30% 40% 50% 60% 70% 80% 90% 100%
+Library Manager: Servo@1.3.0 has been installed!
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/atmelavr/uno.html
+PLATFORM: Atmel AVR (5.3.0) > Arduino Uno
+HARDWARE: ATMEGA328P 16MHz, 2KB RAM, 31.50KB Flash
+DEBUG: Current (avr-stub) External (avr-stub, simavr)
+PACKAGES: 
+ - framework-arduino-avr @ 5.4.0 
+ - toolchain-atmelavr @ 1.70300.191015 (7.3.0)
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 6 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- Servo @ 1.3.0
+|-- SoftwareSerial @ 1.0
+|-- EEPROM @ 2.0
+Building in release mode
+Compiling .pio\build\uno_nano_five_fast\src\app_controller.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\arm.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\button_link.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\command_text.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\commands.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\control_error.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\control_settings.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\hardware_config.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\joystick.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\kinematics.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\main.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\manual_control.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\motion.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\path_planner.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\pick_place.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\pin_uart.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\recording.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\serial_format.cpp.o
+Compiling .pio\build\uno_nano_five_fast\src\teaching.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\avr\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\esp32\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\mbed\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\megaavr\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\nrf52\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\renesas\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\sam\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\samd\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\stm32f4\Servo.cpp.o
+src\motion.cpp: In function 'void updateMotion(uint32_t, bool)':
+src\motion.cpp:346:82: warning: comparison between signed and unsigned integer expressions [-Wsign-compare]
+         if(task.status.kind==TaskKind::Polyline && task.status.completedWaypoints>hardwareConfig.homeViaCount+4 &&
+                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\xmc\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\libe36\Servo\zephyr\Servo.cpp.o
+Compiling .pio\build\uno_nano_five_fast\lib108\SoftwareSerial\SoftwareSerial.cpp.o
+Archiving .pio\build\uno_nano_five_fast\libFrameworkArduinoVariant.a
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\CDC.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\HardwareSerial.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\HardwareSerial0.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\HardwareSerial1.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\HardwareSerial2.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\HardwareSerial3.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\IPAddress.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\PluggableUSB.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\Print.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\Stream.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\Tone.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\USBCore.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\WInterrupts.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\WMath.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\WString.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\abi.cpp.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\hooks.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\main.cpp.o
+Archiving .pio\build\uno_nano_five_fast\libe36\libServo.a
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\new.cpp.o
+Archiving .pio\build\uno_nano_five_fast\lib108\libSoftwareSerial.a
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring_analog.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring_digital.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring_pulse.S.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring_pulse.c.o
+Compiling .pio\build\uno_nano_five_fast\FrameworkArduino\wiring_shift.c.o
+Archiving .pio\build\uno_nano_five_fast\libFrameworkArduino.a
+Linking .pio\build\uno_nano_five_fast\firmware.elf
+Checking size .pio\build\uno_nano_five_fast\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [======    ]  63.4% (used 1299 bytes from 2048 bytes)
+Flash: [==========]  99.5% (used 32102 bytes from 32256 bytes)
+Building .pio\build\uno_nano_five_fast\firmware.hex
+========================= [SUCCESS] Took 7.70 seconds =========================
+
+Environment         Status    Duration
+------------------  --------  ------------
+uno_nano_link       SUCCESS   00:00:02.451
+uno_nano_five_fast  SUCCESS   00:00:07.704
+========================= 2 succeeded in 00:00:10.155 =========================

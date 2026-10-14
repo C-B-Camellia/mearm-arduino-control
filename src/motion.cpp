@@ -266,7 +266,12 @@ __attribute__((noinline)) void execute(uint32_t now) {
             if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || drawing) speed=DEFAULT_MOVE_SPEED;
             if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
                 speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
-            task.duration=max(static_cast<uint32_t>(stroke?1:WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
+            task.duration=stroke?1:WAYPOINT_DELAY_MS;
+#ifdef MEARM_FIVE_FAST
+            // Experimental only: preserve every position/IK/output check.
+            if(!(stroke && (task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve)))
+#endif
+                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
             // Paper feed limits pen down/stroke/up. HOME, air travel and return
             // use the existing joint speed instead of the paper feed.
             if(drawing && index>=penDown && index<=penUp) {
@@ -336,6 +341,12 @@ void updateMotion(uint32_t now,bool controlDue) {
         }
         if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
             task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);
+#ifdef MEARM_FIVE_FAST
+        // Only the three interior POLY vertices hold; CURVE remains continuous.
+        if(task.status.kind==TaskKind::Polyline && task.status.completedWaypoints>hardwareConfig.homeViaCount+4 &&
+           task.status.completedWaypoints<task.status.totalWaypoints-hardwareConfig.homeViaCount-2)
+            task.dwellRemaining=MEARM_POLY_HOLD_MS;
+#endif
         if(task.status.completedWaypoints==task.status.totalWaypoints && !task.dwellRemaining) { finish(); return; }
         if(task.dwellRemaining) { task.lastUpdate=now; return; }
     }

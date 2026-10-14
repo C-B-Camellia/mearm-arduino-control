@@ -28,6 +28,7 @@ void diagnose(bool curve) {
  }
  std::cout<<(curve?"CURVE":"POLY")<<" VALID samples="<<task.status.totalWaypoints<<" calls="<<calls<<'\n';
 }
+#ifndef FIELD_LIBRARY
 int main(){ measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=joints[i];
  std::cout<<std::setprecision(9);diagnose(false);diagnose(true);
  reset();setCommand({{74,42,106,58}});holdArm();CHECK(cancelAndReturnHome());
@@ -58,3 +59,5 @@ int main(){ measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=
  CHECK(isArmHeld() && servoWrites.empty());CHECK(Serial.output.find("PATH ERR 3/0")!=std::string::npos);fieldShift=0;
  std::cout<<"PASS boundary replay and held HOME "<<assertions<<'\n';
 }
+
+#endif
