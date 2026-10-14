@@ -127,8 +127,8 @@ void testParser() {
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
     CHECK(contains("J=120 60") || contains("J=90 120 60 50"));
     Serial.output.clear(); send("HELP");
-    for(const char* command:{"RUNLINE","IK3","JOINT|CART","O/S H/L","REC","BTN 1..4","MARKING","ORDER","TRIANGLE","CURVE"}) CHECK(contains(command));
-    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==6);
+    for(const char* command:{"RUNLINE","IK3","JOINT/CART","O/S H/L","REC","BTN 1..4","TEACH","ORDER","DRAW","PICK"}) CHECK(contains(command));
+    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==4); // Compact HELP; command behavior is tested separately.
     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
         Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
     }
@@ -153,7 +153,8 @@ void testHoldAndJoystick() {
     analogValues[0]=506+499; CHECK(readJoysticks().lx==-1);
     analogValues[0]=506+500; CHECK(readJoysticks().lx==-2);
     analogValues[0]=506;
-    CHECK(MANUAL_JOINT_SLOW==45.0f && MANUAL_JOINT_FAST==90.0f);
+    CHECK(MANUAL_JOINT_SLOW==25.0f && MANUAL_JOINT_FAST==90.0f);
+    CHECK(MANUAL_CART_SLOW==25.0f && MANUAL_CART_FAST==100.0f);
     CHECK(joints[Shoulder].commandedAngle==120 && joints[Elbow].commandedAngle==60);
     const int centers[4]={506,519,515,519};
     const int signs[4]={1,-1,1,1};
@@ -188,7 +189,7 @@ void test3DAndManual() {
     CHECK(setControlMode(ControlMode::Cartesian)); CHECK(servoWrites.empty());
     CHECK(setControlMode(ControlMode::Joint));
     fresh(); analogValues[1]=300; runFor(500);
-    CHECK(joints[Shoulder].commandedAngle>=97 && joints[Shoulder].commandedAngle<=99);
+    CHECK(joints[Shoulder].commandedAngle>=107 && joints[Shoulder].commandedAngle<=109);
     CHECK(automaticSpeed()==60 && manualSpeedScale()==1);
     send("H"); CHECK(manualSpeedScale()==1.25f && automaticSpeed()==60);
     send("H"); send("H"); CHECK(manualSpeedScale()==1.5f);
@@ -605,7 +606,8 @@ void testTeachAndDraw() {
     send("TEACH EXIT"); CHECK(!teachingActive());
     CHECK(startDrawLine({86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
     for(ShapeId shape:{ShapeId::N,ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
-        CHECK(startBasicShape(shape,{86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
+        CHECK(!startBasicShape(shape,{86,-5},{88,5})); CHECK(lastControlError()==ControlError::Geometry);
+        CHECK(startBasicShape(shape,{86,-5},{91,5})); finishTask(); CHECK(!isArmHeld());
     }
 }
 void testFailureAndLatency() {
