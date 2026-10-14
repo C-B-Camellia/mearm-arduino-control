@@ -1,0 +1,2 @@
+PASS D10 UART register model: 3610 checks
+PASS Nano protocol + real Uno PC loop: 38 checks

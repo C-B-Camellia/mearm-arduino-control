@@ -1,0 +1,41 @@
+PLAN kind=0 index=1 stroke=0 dist=0 degrees=0 ms=10
+PLAN kind=0 index=2 stroke=0 dist=0 degrees=31.4481 ms=525
+PLAN kind=0 index=3 stroke=0 dist=0 degrees=7.42809 ms=124
+PLAN kind=0 index=4 stroke=0 dist=11.76 degrees=12.9753 ms=471
+PLAN kind=0 index=5 stroke=1 dist=4.55013 degrees=3.82722 ms=131
+PLAN kind=0 index=14 stroke=0 dist=11.76 degrees=9.02791 ms=471
+PLAN kind=0 index=15 stroke=0 dist=0 degrees=43.2295 ms=721
+PLAN_DONE kind=0 speed=35 totalVirtualMs=3501
+PLAN kind=1 index=1 stroke=0 dist=0 degrees=0 ms=10
+PLAN kind=1 index=2 stroke=0 dist=0 degrees=31.4481 ms=525
+PLAN kind=1 index=3 stroke=0 dist=0 degrees=23.222 ms=388
+PLAN kind=1 index=4 stroke=0 dist=11.76 degrees=12.8993 ms=471
+PLAN kind=1 index=5 stroke=1 dist=4.6275 degrees=2.36433 ms=133
+PLAN kind=1 index=17 stroke=1 dist=4.8085 degrees=2.2448 ms=138
+PLAN kind=1 index=33 stroke=1 dist=4.6275 degrees=1.62122 ms=133
+PLAN kind=1 index=45 stroke=0 dist=11.76 degrees=8.13343 ms=471
+PLAN kind=1 index=46 stroke=0 dist=0 degrees=51.6609 ms=862
+PLAN_DONE kind=1 speed=35 totalVirtualMs=8127
+PLAN kind=2 index=1 stroke=0 dist=0 degrees=0 ms=10
+PLAN kind=2 index=2 stroke=0 dist=0 degrees=31.4481 ms=525
+PLAN kind=2 index=3 stroke=0 dist=0 degrees=7.42809 ms=124
+PLAN kind=2 index=4 stroke=0 dist=11.76 degrees=12.9753 ms=471
+PLAN kind=2 index=5 stroke=1 dist=4.55013 degrees=3.82722 ms=131
+PLAN kind=2 index=14 stroke=1 dist=4.6401 degrees=1.76388 ms=133
+PLAN kind=2 index=23 stroke=1 dist=4.60945 degrees=2.41885 ms=132
+PLAN kind=2 index=30 stroke=1 dist=4.74076 degrees=2.91501 ms=136
+PLAN kind=2 index=36 stroke=0 dist=11.76 degrees=13.1692 ms=471
+PLAN kind=2 index=37 stroke=0 dist=0 degrees=34.1565 ms=570
+PLAN_DONE kind=2 speed=35 totalVirtualMs=6287
+PLAN kind=3 index=1 stroke=0 dist=0 degrees=0 ms=10
+PLAN kind=3 index=2 stroke=0 dist=0 degrees=31.4481 ms=525
+PLAN kind=3 index=3 stroke=0 dist=0 degrees=7.42809 ms=124
+PLAN kind=3 index=4 stroke=0 dist=11.76 degrees=12.9753 ms=471
+PLAN kind=3 index=5 stroke=1 dist=0.823843 degrees=0.717117 ms=24
+PLAN kind=3 index=55 stroke=1 dist=0.768593 degrees=0.304459 ms=22
+PLAN kind=3 index=101 stroke=1 dist=0.616882 degrees=0.202065 ms=18
+PLAN kind=3 index=142 stroke=1 dist=0.708351 degrees=0.476166 ms=21
+PLAN kind=3 index=178 stroke=0 dist=11.76 degrees=13.1692 ms=471
+PLAN kind=3 index=179 stroke=0 dist=0 degrees=34.1565 ms=570
+PLAN_DONE kind=3 speed=35 totalVirtualMs=6475
+PASS fixed drawing timing 25327

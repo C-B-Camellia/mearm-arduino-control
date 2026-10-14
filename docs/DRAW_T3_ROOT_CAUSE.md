@@ -1,3 +1,5 @@
+> 历史阶段记录：其中 FEED 调参步骤已退役；当前固件固定35mm/s描线，见 [本轮接口与测试说明](TEACH_AXIS_FIXED35_2026-10-14.md)。下文保留用于追溯当时的源码与构建证据。
+
 # DRAW T3 ROOT CAUSE — 定向诊断（2026-10-14）
 
 审计对象：D:/Develop/MeArm-Bringup-2026-10-12，分支 codex/full-prototype-integration-2026-10-14，HEAD aef334b234f7b67a953f708e9f438eab0cf5c66e。开始时工作区干净。本轮只新增本报告、计时报告和桌面诊断测试/证据；不修改 src/、include/、platformio.ini，不改标定、不上传、不访问硬件。没有切换分支或实施下面的修复。

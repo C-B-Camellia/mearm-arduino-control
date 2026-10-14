@@ -1,0 +1,34 @@
+Non-stroke stage plans identical in standard35, fast35, fast25, fast80: 24 segments.
+field_speed_tests.cpp.log
+METRIC kind=0 feed=35 total=2900 stroke=580 first=580 writes=111 maxIntDelta=2 holds=0
+METRIC kind=1 feed=35 total=6380 stroke=4140 first=1180 writes=192 maxIntDelta=2 holds=0
+METRIC kind=2 feed=35 total=6600 stroke=4360 first=1220 writes=198 maxIntDelta=2 holds=0
+METRIC kind=1 feed=35 total=7380 stroke=5140 first=2180 writes=192 maxIntDelta=2 holds=0
+METRIC kind=2 feed=35 total=7600 stroke=5360 first=2220 writes=198 maxIntDelta=2 holds=0
+PASS field speed 2626
+fast-field_speed_tests.cpp.log
+METRIC kind=0 feed=35 total=2900 stroke=580 first=580 writes=111 maxIntDelta=2 holds=0
+METRIC kind=1 feed=35 total=6620 stroke=4380 first=1180 writes=192 maxIntDelta=2 holds=3
+METRIC kind=2 feed=35 total=6600 stroke=4360 first=1220 writes=198 maxIntDelta=2 holds=0
+METRIC kind=1 feed=35 total=7620 stroke=5380 first=1180 writes=192 maxIntDelta=2 holds=3
+METRIC kind=2 feed=35 total=7600 stroke=5360 first=2220 writes=198 maxIntDelta=2 holds=0
+PASS field speed 2656
+uno SHA256 2594d2595a9e177eb9309606192f1b5b6746a7b041aeff1a5fb140fc18d5efba
+uno_nano_link SHA256 97d092ea7670d49277dc9eab8fe02c370a2bda099fcd7e2f2390be5ad5123c12
+uno_nano_five_fast SHA256 be029cf913eca439387edb6730f1806b84f88b52fbf8268ffc6b5e64e1a4c87d
+.pio/build/uno_nano_five_fast/firmware.elf  :
+section                     size      addr
+.data                        254   8388864
+.text                      31662         0
+.bss                        1041   8389118
+.comment                      17         0
+.note.gnu.avr.deviceinfo      64         0
+.debug_aranges               544         0
+.debug_info                 4703         0
+.debug_abbrev               1782         0
+.debug_line                 2904         0
+.debug_str                   520         0
+Total                      43491
+
+
+

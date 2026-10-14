@@ -58,9 +58,9 @@ int main(){setup();
  reset(p);CHECK(beginTeach());analogValues[3]=619;for(int i=0;i<10;++i)tick();CHECK(commandedPose().angles[1]==p.angles[1]);center();tick();analogValues[3]=619;for(int i=0;i<10;++i)tick();CHECK(fk(goalPose()).z>fk(p).z+4.9f);center();
  // Capture three actual accepted Zs with joystick movement, then enter MARKING.
  reset(p);CHECK(beginTeach());tick();CHECK(captureTeachHeight(true));float z0=teachSettings().drawZ;
- analogValues[3]=619;for(int i=0;i<10;++i)tick();center();CHECK(captureTeachAlignment());float z1=teachSettings().teachZ;
+ analogValues[3]=619;for(int i=0;i<10;++i)tick();center();CHECK(captureTeachAlignment());float z1=teachSettings().teachZ;Pose teachPose=commandedPose();
  analogValues[3]=619;for(int i=0;i<10;++i)tick();center();CHECK(captureTeachHeight(false));float z2=teachSettings().travelZ;
- CHECK(z0<z1&&z1<z2);CHECK(captureTeachAlignment());CHECK(beginMarking());
+ CHECK(z0<z1&&z1<z2);command(teachPose);CHECK(teachSettings().teachZ==z1);CHECK(beginMarking());
  std::cout<<"HEIGHTS "<<z0<<' '<<z1<<' '<<z2<<" MARKING accepted\n";
  reset(p);CHECK(beginTeach());CHECK(captureTeachHeight(true));CHECK(captureTeachAlignment());CHECK(captureTeachHeight(false));CHECK(!beginMarking());CHECK(lastControlError()==ControlError::Uncalibrated);
  // Pending/motion ownership must reject height capture rather than reuse a new goal.

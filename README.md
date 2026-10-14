@@ -1,3 +1,5 @@
+> Current Bringup (2026-10-14): runtime `FEED` has been retired. Drawing strokes use a fixed 35 mm/s target; use `uno_nano_five_fast` for the current D10 experiment. [TEACH axis evidence, current commands and build results](docs/TEACH_AXIS_FIXED35_2026-10-14.md).
+
 # MeArm assessment firmware candidate
 
 PlatformIO / classic Arduino Uno / ATmega328P / Servo. This candidate implements

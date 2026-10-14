@@ -1,0 +1,5 @@
+LINE fixedSpeed=35 totalMs=1720 strokeMs=860 frames=49
+POLY fixedSpeed=35 totalMs=2080 strokeMs=1040 samples=8 frames=55
+CURVE fixedSpeed=35 totalMs=2160 strokeMs=1120 samples=44 frames=55
+CURVE late-tick totalMs=5600 strokeMs=2800
+PASS DRAW speed: 4976 checks

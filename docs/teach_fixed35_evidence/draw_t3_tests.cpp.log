@@ -1,0 +1,18 @@
+CAPTURE A z=130.43454 PEN_DOWN J=118.13623,59.75812 quantZ=129.64371; B z=127.64931 J=116.23315,59.58595 quantZ=126.85846
+REJECT marking retained=130.43454 output=ERR INVALID
+
+
+Z_SCAN sameXY=101.57516,13.78767 valid=2501 plateaus=2480 reversals=1 max_up_step=0.79085 witness target=113.44112 -> 113.43112 quantFK=111.53661 -> 112.32745
+LOGGED_STATUS_FK J=80.00000/92.00000/63.00000/90.00000 XYZ=101.30842/-4.06657/97.03436 (capture time unknown)
+LOGGED_STATUS_FK J=88.00000/85.00000/78.00000/90.00000 XYZ=115.84592/12.26247/96.46655 (capture time unknown)
+LOGGED_STATUS_FK J=88.00000/85.00000/78.00000/85.00000 XYZ=115.84592/12.26247/96.46655 (capture time unknown)
+LOGGED_STATUS_FK J=96.00000/92.00000/115.00000/89.00000 XYZ=165.55849/43.66134/103.14738 (capture time unknown)
+IDENTITY homeJ=90.00000/120.00000/60.00000 IKJ=90.00000/120.00002/59.99998 quantJ=90.00000/120.00000/59.00000 FKz=133.21112 -> 132.42027
+LOGGED_P1_P2 illustrativeOnly length=46.08403 samples=62 nominal15=3.07227 nominal25=1.84336
+TRACE feed=35.00000 tickGap=20 fastAck=1 sampleStroke=6 validateCalls=48 drawZ=127.64931 travelZ=133.21112
+TOTAL ms=1720 strokeMs=860 repeatedOutputFrames=37
+TRACE feed=35.00000 tickGap=20 fastAck=0 sampleStroke=6 validateCalls=48 drawZ=127.64931 travelZ=133.21112
+TOTAL ms=1740 strokeMs=860 repeatedOutputFrames=37
+TRACE feed=35.00000 tickGap=100 fastAck=1 sampleStroke=6 validateCalls=48 drawZ=127.64931 travelZ=133.21112
+TOTAL ms=4500 strokeMs=2200 repeatedOutputFrames=10
+PASS DRAW T3 diagnostic: 5598 checks
