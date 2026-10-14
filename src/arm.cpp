@@ -3,14 +3,13 @@
 
 #include <math.h>
 
-// Original 2026-09-27 input mapping and joint start targets.
-// Fields: joystick pin, servo pin, center, commanded/goal angles, limits,
-//         direction sign, output enabled.
+// Servo targets/limits only. ADC centers and directions live in joystick.cpp.
+// Fields: servo pin, commanded/goal angles, limits, output enabled.
 JointControl joints[JointCount] = {
-    {A0, 9, 506,  90.0f,  90.0f,  0.0f, 180.0f,  1, false}, // Base
-    {A1, 8, 519, 120.0f, 120.0f, 20.0f, 125.0f, -1, true},  // Shoulder / J1
-    {A3, 7, 519,  60.0f,  60.0f, 40.0f, 150.0f,  1, true},  // Elbow / J2
-    {A2, 6, 515,  50.0f,  50.0f,  0.0f, 180.0f,  1, false}  // Gripper
+    {9,  90.0f,  90.0f,  0.0f, 180.0f, false}, // Base
+    {8, 120.0f, 120.0f, 20.0f, 125.0f, true},  // Shoulder / J1
+    {7,  60.0f,  60.0f, 40.0f, 150.0f, true},  // Elbow / J2
+    {6,  50.0f,  50.0f,  0.0f, 180.0f, false}  // Gripper
 };
 namespace {
 Servo servos[JointCount];
@@ -115,13 +114,17 @@ static bool applyPoseImmediate(const Pose& pose)
         return false;
     }
 
+    // Timer1 keeps emitting the previous pulse without another Servo.write.
+    // Still accept the continuous float goal and acknowledge an unchanged frame.
+    bool changed=false;
     // Update both software angles before sending either servo command.
     for (uint8_t i = 0; i < JointCount; ++i) {
+        if(output.angles[i]!=joints[i].commandedAngle) changed=true;
         joints[i].commandedAngle = output.angles[i];
         joints[i].goalAngle = pose.angles[i];
     }
     for (uint8_t i = 0; i < JointCount; ++i) {
-        if (joints[i].outputEnabled) {
+        if (changed && joints[i].outputEnabled) {
             servos[i].write(static_cast<int>(output.angles[i]));
         }
     }

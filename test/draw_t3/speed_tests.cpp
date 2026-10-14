@@ -72,8 +72,12 @@ RunResult run(bool pause=false,uint32_t gap=20) {
         if(hasPendingPose()) {
             Pose goal=goalPose(); float movement=maxDifference(prior,goal);
             CHECK(movement<=DEFAULT_MOVE_SPEED*min(interval,MANUAL_MAX_DT_MS)*.001f+.001f);
+            Pose beforeOutput=commandedPose(); Pose expected; CHECK(prepareOutputPose(goal,expected));
             size_t writes=servoWrites.size(); CHECK(applyPendingPose());
-            CHECK(servoWrites.size()==writes+4); ++frames; prior=goal;
+            bool changed=maxDifference(beforeOutput,expected)>0;
+            CHECK(servoWrites.size()==writes+(changed?4:0));
+            CHECK(maxDifference(commandedPose(),expected)==0);
+            if(changed) ++frames; prior=goal;
         }
         // Every mandatory checkpoint must reach the output, not just the cursor.
         if(task.endpointQueued) { CHECK(maxDifference(goalPose(),task.segmentTarget)<.001f); checkpoint=true; }

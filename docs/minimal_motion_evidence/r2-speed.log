@@ -1,0 +1,8 @@
+LINE feed=15 totalMs=3160 strokeMs=2020 effective=14.8515 frames=50
+LINE feed=25 totalMs=2060 strokeMs=1200 effective=25 frames=48
+LINE feed=80 totalMs=920 strokeMs=380 effective=78.9474 frames=40
+LINE feed=100 totalMs=840 strokeMs=300 effective=100 frames=39
+POLY feed=80 totalMs=1200 strokeMs=480 samples=8 frames=53
+CURVE feed=80 totalMs=1280 strokeMs=560 samples=44 frames=53
+CURVE late-tick totalMs=3200 strokeMs=1200
+PASS DRAW speed: 5789 checks

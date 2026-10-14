@@ -1,0 +1,17 @@
+version,symbol,locals,saved registers,own frame excluding return/callees/ISR
+RC0,"centripetalSample(TeachPoint const&, TeachPoint const&, TeachPoint const&, TeachPoint const&, float, TeachPoint&)",52,18,70
+RC0,"solveFK3D(float, float, float)",40,18,58
+RC0,"inverse3D(Point3D const&, IKResult3D&)",41,18,59
+RC0,"(anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]",69,16,85
+RC0,(anonymous namespace)::execute(unsigned long),53,17,70
+RC0,cancelAndReturnHome(),28,9,37
+RC0,pollSerial(),81,18,99
+RC0,main,32,16,48
+R2,"centripetalSample(TeachPoint const&, TeachPoint const&, TeachPoint const&, TeachPoint const&, float, TeachPoint&)",52,18,70
+R2,"solveFK3D(float, float, float)",40,18,58
+R2,"inverse3D(Point3D const&, IKResult3D&)",41,18,59
+R2,"(anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]",69,18,87
+R2,(anonymous namespace)::execute(unsigned long),36,17,53
+R2,cancelAndReturnHome(),28,9,37
+R2,pollSerial(),81,18,99
+R2,main,33,18,51

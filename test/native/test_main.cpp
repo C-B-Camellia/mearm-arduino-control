@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include "arm.h"
+#include "joystick.h"
 #include "commands.h"
 #include "config.h"
 #include "kinematics.h"
@@ -128,10 +129,10 @@ void validateRun()
 void testSafetyAndQueuedPoses()
 {
     fresh();
-    CHECK(joints[Base].joystickPin == A0 && joints[Base].servoPin == 9 && joints[Base].center == 506);
-    CHECK(joints[Shoulder].joystickPin == A1 && joints[Shoulder].center == 519 && joints[Shoulder].directionSign == -1);
-    CHECK(joints[Elbow].joystickPin == A3 && joints[Elbow].center == 519 && joints[Elbow].directionSign == 1);
-    CHECK(joints[Gripper].joystickPin == A2 && joints[Gripper].servoPin == 6 && joints[Gripper].center == 515);
+    CHECK(joints[Base].servoPin == 9 && joints[Shoulder].servoPin == 8);
+    CHECK(joints[Elbow].servoPin == 7 && joints[Gripper].servoPin == 6);
+    CHECK(joysticksCentered(readJoysticks())); // Actual ADC mapping is tested in sprint_tests.
+
     CHECK(!joints[Base].outputEnabled && !joints[Gripper].outputEnabled);
     CHECK(isSafePlanarPose(20, 128));
     CHECK(!isSafePlanarPose(20, 127.9f));

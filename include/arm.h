@@ -12,9 +12,7 @@ enum JointId : uint8_t {
 };
 
 struct JointControl {
-    int joystickPin;
     int servoPin;
-    int center;
 
     // Software command state, not measured position feedback.
     float commandedAngle;
@@ -22,7 +20,6 @@ struct JointControl {
     float minAngle;
     float maxAngle;
 
-    int directionSign;
     bool outputEnabled;
 };
 

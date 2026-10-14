@@ -1,0 +1,326 @@
+0080047e 00000001 b Channel
+00800111 00000001 d (anonymous namespace)::activeSlot
+00800482 00000001 b (anonymous namespace)::nextObject
+00800483 00000001 b (anonymous namespace)::currentMode
+00800243 00000001 b (anonymous namespace)::discardLine
+0080015e 00000001 d (anonymous namespace)::posePending
+00800242 00000001 b (anonymous namespace)::serialIndex
+00800497 00000001 b (anonymous namespace)::lastSequence
+008004a6 00000001 b (anonymous namespace)::synchronized
+0080044b 00000001 b (anonymous namespace)::reportedSecond
+00800266 00000001 b (anonymous namespace)::bit
+00800496 00000001 b (anonymous namespace)::head
+008004af 00000001 b (anonymous namespace)::held
+00800495 00000001 b (anonymous namespace)::tail
+008004a7 00000001 b (anonymous namespace)::used
+00800260 00000001 b (anonymous namespace)::armed
+0080047f 00000001 b (anonymous namespace)::count
+008004cc 00000001 b (anonymous namespace)::error
+00800265 00000001 b (anonymous namespace)::shift
+00800480 00000001 b (anonymous namespace)::active
+008004ae 00000001 b (anonymous namespace)::saving
+00800481 00000001 b (anonymous namespace)::marking
+00800484 00000001 b (anonymous namespace)::overflow
+008004ac 00000001 b (anonymous namespace)::writeSlot
+008004ad 00000001 b (anonymous namespace)::writeStep
+008005f6 00000001 b ServoCount
+008004b4 00000001 b timer0_fract
+00007448 00000002 T __usmulhisi3
+00000bae 00000002 t printChar(char)
+00001caa 00000002 t printLine(__FlashStringHelper const*)
+00000bb0 00000002 t printText(__FlashStringHelper const*)
+008004aa 00000002 b (anonymous namespace)::generation
+00800498 00000002 b (anonymous namespace)::epoch
+008004a8 00000002 b (anonymous namespace)::writeCrc
+00000264 00000003 t printApplicationStatus()::__c
+000002e6 00000003 t (anonymous namespace)::printStatus()::__c
+00000118 00000003 t (anonymous namespace)::result(bool)::__c
+000076a0 00000004 T __divsf3
+00007abe 00000004 T __mulsf3
+00007368 00000004 T __mulshisi3
+00800447 00000004 b (anonymous namespace)::lastSample
+00800100 00000004 d (anonymous namespace)::manualScale
+00800261 00000004 b (anonymous namespace)::lastManualTime
+008004b0 00000004 b (anonymous namespace)::lastControlTime
+00800108 00000004 d (anonymous namespace)::drawFeed
+008004a2 00000004 b (anonymous namespace)::lastByte
+00800104 00000004 d (anonymous namespace)::autoSpeed
+00800452 00000004 b (anonymous namespace)::startedAt
+00002080 00000004 t (anonymous namespace)::readByte(unsigned int)
+000003e6 00000004 t printDecimal(float, unsigned char)::__c
+000003e2 00000004 t printDecimal(float, unsigned char)::__c
+000003de 00000004 t printDecimal(float, unsigned char)::__c
+00800173 00000004 d actions.4498
+0080016f 00000004 d actions.4500
+008004b5 00000004 b timer0_millis
+008004b9 00000004 b timer0_overflow_count
+0080010c 00000005 d (anonymous namespace)::order
+000002ee 00000005 t executeAppCommand(char* const*, unsigned char, bool&)::__c
+000002e9 00000005 t executeAppCommand(char* const*, unsigned char, bool&)::__c
+00000318 00000005 t printControlError()::__c
+000003a6 00000005 t printRecordingStatus()::__c
+00000383 00000005 t printRecordingStatus()::__c
+000002fe 00000005 t (anonymous namespace)::executeLine(char*)::__c
+000002f3 00000005 t (anonymous namespace)::executeLine(char*)::__c
+000002f3 00000005 t (anonymous namespace)::printStatus()::__c
+00000113 00000005 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c
+00000108 00000005 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c
+0000011b 00000005 t (anonymous namespace)::printIK(IKResult const&)::__c
+00007928 00000006 T __fp_nan
+00001cea 00000006 t printNewline()
+0080044c 00000006 b (anonymous namespace)::status
+00000417 00000006 t executeAppCommand(char* const*, unsigned char, bool&)::__c
+0000037d 00000006 t executePickCommand(char* const*, unsigned char)::__c
+000003a0 00000006 t printRecordingStatus()::__c
+000002f8 00000006 t (anonymous namespace)::executeLine(char*)::__c
+0000029c 00000006 t _ZZN12_GLOBAL__N_111printStatusEvE3__c__10_
+000002f8 00000006 t (anonymous namespace)::printStatus()::__c
+0000010d 00000006 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c
+00000102 00000006 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c
+0000769a 00000006 T cos
+00007c14 00000006 T square
+000003fa 00000007 t feedButtonByte(char, unsigned long)::__c
+00000376 00000007 t executePickCommand(char* const*, unsigned char)::__c
+00000399 00000007 t printRecordingStatus()::__c
+00000392 00000007 t printRecordingStatus()::__c
+000002d4 00000007 t (anonymous namespace)::printStatus()::__c
+000002bf 00000007 t (anonymous namespace)::printStatus()::__c
+000002b8 00000007 t (anonymous namespace)::printStatus()::__c
+000002a9 00000007 t (anonymous namespace)::printStatus()::__c
+000002a2 00000007 t (anonymous namespace)::printStatus()::__c
+00000120 00000007 t (anonymous namespace)::printIK(IKResult const&)::__c
+00007692 00000008 T __cmpsf2
+00007aa8 00000008 T __gesf2
+0000736c 00000008 T __mulohisi3
+00007c1a 00000008 T __unordsf2
+00001d4c 00000008 t printUnsigned(unsigned int)
+0080049a 00000008 b (anonymous namespace)::frame
+00001cd6 00000008 t (anonymous namespace)::invalid()
+00000a04 00000008 t Print::print(char) [clone .constprop.22]
+000003ab 00000008 t updateRecording(unsigned long, Pose const&)::__c
+0000026f 00000008 t printApplicationStatus()::__c
+00000267 00000008 t printApplicationStatus()::__c
+0000028b 00000008 t _ZZN12_GLOBAL__N_111printStatusEvE3__c__12_
+000002b0 00000008 t (anonymous namespace)::printStatus()::__c
+00000293 00000009 t _ZZN12_GLOBAL__N_111printStatusEvE3__c__11_
+00007770 0000000a T __fixsfsi
+000074de 0000000a T __subsf3
+0000744a 0000000a T __usmulhisi3_tail
+0000052d 0000000a t (anonymous namespace)::errorOffsets
+00000388 0000000a t printRecordingStatus()::__c
+00000281 0000000a t printApplicationStatus()::__c
+00000277 0000000a t printApplicationStatus()::__c
+0000031d 0000000a t (anonymous namespace)::finish(bool)::__c
+000005bd 0000000a t port_to_mode_PGM
+000005c7 0000000a t port_to_output_PGM
+00000412 0000000b t updateMotion(unsigned long, bool)::__c
+000000f7 0000000b t stopRecording(unsigned long)::__c
+000002db 0000000b t (anonymous namespace)::printStatus()::__c
+0000034f 0000000b t (anonymous namespace)::validateOne()::__c
+00000334 0000000b t (anonymous namespace)::finish(bool)::__c
+000078ca 0000000c T __fp_inf
+0000743c 0000000c T __tablejump2__
+00800244 0000000c b (anonymous namespace)::cartTarget
+00001cde 0000000c t (anonymous namespace)::result(bool)
+008005f7 0000000c b (anonymous namespace)::servos
+000003d2 0000000c t updateRecording(unsigned long, Pose const&)::__c
+00007b84 0000000c T sin
+000000dc 0000000d t startRecording(unsigned long)::__c
+00000327 0000000d t (anonymous namespace)::finish(bool)::__c
+00007c22 0000000e T __fp_norm2
+00007978 0000000e T __fp_pscA
+00007986 0000000e T __fp_pscB
+00007a9a 0000000e T __fp_zero
+00001d3e 0000000e t printlnUnsigned(unsigned int)
+000000e9 0000000e t startRecording(unsigned long)::__c
+000003c4 0000000e t updateRecording(unsigned long, Pose const&)::__c
+000002c6 0000000e t (anonymous namespace)::printStatus()::__c
+00007ab0 0000000e T inverse
+008004bd 0000000f b (anonymous namespace)::settings
+00000632 00000010 T __do_clear_bss
+00007344 00000010 T __negsi2
+00000bf2 00000010 t isRecording()
+00000be2 00000010 t clearRecording()
+00800250 00000010 b (anonymous namespace)::manualTarget
+00800485 00000010 b (anonymous namespace)::bytes
+00000553 00000010 t (anonymous namespace)::shapeVertices
+000003ea 00000010 t setup::__c
+0000033f 00000010 t (anonymous namespace)::validateOne()::__c
+0000041d 00000010 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c
+000072f0 00000010 T eeprom_read_byte
+000003b3 00000011 t updateRecording(unsigned long, Pose const&)::__c
+00000401 00000011 t updatePickPersistence()::__c
+00000b86 00000012 t markingActive()
+00000a4a 00000012 t serialEventRun()
+000008e6 00000012 t Serial0_available()
+008001e7 00000012 d vtable for HardwareSerial
+0000727e 00000012 T memcpy_P
+00007290 00000012 T strcmp_P
+00007354 00000014 T __muluhisi3
+000005e5 00000014 t digital_pin_to_bit_mask_PGM
+000005d1 00000014 t digital_pin_to_port_PGM
+000005f9 00000014 t digital_pin_to_timer_PGM
+00000303 00000015 t pollSerial()::__c
+0000061c 00000016 T __do_copy_data
+00000642 00000016 T __do_global_ctors
+00002084 00000016 t pickStageMask(unsigned char)
+0000209a 00000016 t pickCalibrationValid(unsigned char)
+00000b98 00000016 t isfinite.lto_priv.35
+00000b98 00000016 t isfinite.lto_priv.36
+00000b98 00000016 t isfinite.lto_priv.37
+00000b98 00000016 t isfinite.lto_priv.38
+00000b98 00000016 t isfinite.lto_priv.39
+00000b98 00000016 t isfinite.lto_priv.40
+00000b98 00000016 t isfinite.lto_priv.41
+00000b98 00000016 t isfinite.lto_priv.42
+00000b98 00000016 t isfinite.lto_priv.43
+00007c52 00000016 T strchr
+000073d6 00000018 T __udivmodqi4
+00002d36 00000018 t cancelMotion()
+00000db6 00000018 t drawingTaskActive()
+000008ce 00000018 t HardwareSerial::available()
+0000080a 00000018 t millis
+00001c76 0000001a t Print::write(char const*) [clone .part.2] [clone .constprop.30]
+00001c90 0000001a t Print::println(__FlashStringHelper const*) [clone .constprop.27]
+0000790c 0000001c T __fp_mpack
+00000537 0000001c t (anonymous namespace)::joysticks
+000008b2 0000001c t HardwareSerial::peek()
+0000035a 0000001c t (anonymous namespace)::validateOne()::__c
+000074c2 0000001c T acos
+00007300 0000001c T eeprom_write_byte
+000073b8 0000001e T __umulhisi3
+000011b2 0000001e t joysticksCentered(JoystickInput const&)
+000020b0 0000001e t (anonymous namespace)::readWord(unsigned int)
+00001bfc 00000020 t homeCalibrationValid()
+00007c30 00000022 T __fp_powsodd
+000079e4 00000022 T __fp_round
+00007a06 00000022 T __fp_sinus
+00000c5a 00000022 t (anonymous namespace)::crcByte(unsigned int, unsigned char)
+0000205e 00000022 t (anonymous namespace)::writeByte(unsigned int, unsigned char)
+00000868 00000022 t HardwareSerial::availableForWrite()
+008005d2 00000024 b servos
+00000ff0 00000024 t (anonymous namespace)::drawCount()
+00000598 00000025 t executePickCommand(char* const*, unsigned char)::__c
+00007416 00000026 T __divmodhi4
+0000766c 00000026 T ceil
+0000731c 00000028 T __divmodsi4
+000073ee 00000028 T __udivmodhi4
+00800456 00000028 b (anonymous namespace)::points
+0000088a 00000028 t HardwareSerial::read()
+0000042d 00000029 t executeAppCommand(char* const*, unsigned char, bool&)::__c
+000015c2 0000002a t commandedPose()
+00001cac 0000002a t printControlError()
+00001502 0000002c t holdArm()
+00000c02 0000002c t (anonymous namespace)::mutableNow()
+00000c2e 0000002c t (anonymous namespace)::editable()
+00007a6c 0000002e T __fp_trunc
+00000dce 0000002e t resumeMotion(unsigned long)
+000012ac 0000002e t gripperCalibrationValid()
+00004e56 00000030 t dispatchAction(Action const&, float const*)
+00000bb2 00000030 t getRecordedFrame(unsigned char, RecordedFrame&)
+00000b54 00000032 t getTeachPoint(unsigned char, TeachPoint&)
+000009d0 00000034 t Print::print(__FlashStringHelper const*) [clone .constprop.28]
+00007c68 00000034 T strstr
+00000563 00000035 t (anonymous namespace)::stageNumber(char const*)::__c
+0000748c 00000036 T __epilogue_restores__
+0000784c 00000036 T __fp_arccos
+000078d6 00000036 T __fp_mintl
+00007454 00000038 T __prologue_saves__
+00002c3c 0000003c t (anonymous namespace)::currentPoint()
+000014c4 0000003e t parseNumbers(char* const*, unsigned char, float*)
+00000a0c 0000003e t HardwareSerial::flush()
+00000456 0000003f t executeAppCommand(char* const*, unsigned char, bool&)::__c
+00800202 00000040 b (anonymous namespace)::serialBuffer
+00002d4e 00000040 t (anonymous namespace)::finish(bool)
+00000127 00000041 t (anonymous namespace)::printHelp()::__c
+00007a28 00000044 T __fp_split3
+00007374 00000044 T __udivmodsi4
+000008f8 00000044 t HardwareSerial::_tx_udr_empty_irq()
+00000822 00000046 t Print::write(unsigned char const*, unsigned int)
+00007882 00000048 T __fp_cmp
+000004e4 00000049 t (anonymous namespace)::errorNames
+0000792e 0000004a T __fp_powser
+00004f84 0000004a t commandIndex(char const*, char const*)
+00001bb2 0000004a t startJointMove(Pose const&)
+000007c0 0000004a t micros
+000063e6 0000004c T __vector_19
+00002884 0000004c t startCurve()
+000028d0 0000004c t startPolyline()
+00800112 0000004c d joints
+000066ac 0000004e T __vector_3
+000066fa 0000004e t (anonymous namespace)::printIK(IKResult const&)
+00001cf0 0000004e t Print::print(unsigned long, int) [clone .constprop.24]
+000072a2 0000004e T strtok_r
+00000495 0000004f t (anonymous namespace)::executeLine(char*)::__c
+0000761c 00000050 T atan
+00007996 00000056 T __fp_rempio2
+00002ce0 00000056 t syncManualTarget(unsigned long)
+0000777a 00000058 T __fixunssfsi
+00001c1c 0000005a t requestPose(Pose const&)
+00001688 0000005a t (anonymous namespace)::withinLimits(float, JointControl const&)
+00001adc 0000005c t (anonymous namespace)::canApplyPose(Pose const&)
+000006d0 0000005e t (anonymous namespace)::maxDifference(Pose const&, Pose const&) [clone .constprop.7]
+00001762 00000060 t isSafePose(Pose const&)
+00006432 00000062 T __vector_18
+0000356e 00000062 t (anonymous namespace)::pointPose(Point3D const&, Pose&)
+000012da 00000066 t cartesianCalibrationValid()
+00002c78 00000068 t captureHeight(float&, bool&)
+008004cd 00000068 b (anonymous namespace)::task
+00000662 0000006e t (anonymous namespace)::interpolate(Pose const&, Pose const&, float) [clone .constprop.8]
+00001144 0000006e t (anonymous namespace)::axisVelocity(signed char, float, float)
+00001d54 00000070 t printRecordingStatus()
+00800177 00000070 d hardwareConfig
+000077d2 0000007a T __floatunsisf
+00001340 0000007a t drawSettingsValid()
+00001b38 0000007a t prepareOutputPose(Pose const&, Pose&)
+000016e2 00000080 t isSafePlanarPose(float, float)
+000075c6 00000086 T atan2
+00004852 0000008c t setControlMode(ControlMode)
+00007b98 0000008c T sqrt
+00002268 0000008e t pointDistance(TeachPoint const&, TeachPoint const&)
+0000072e 00000092 t digitalWrite
+00006352 00000094 T __vector_16
+0000152e 00000094 t pauseMotion(unsigned long)
+0000093c 00000094 t HardwareSerial::write(unsigned char)
+000021d2 00000096 t restore()
+000015ec 0000009c t (anonymous namespace)::begin(TaskKind, unsigned int)
+00800535 0000009d b Serial
+00006608 000000a4 T __vector_7
+00004794 000000be t readJoysticks()
+00006748 000000ca t global constructors keyed to 65535_0_app_controller.cpp.o.3411
+00007502 000000cc T __addsf3x
+00007ad6 000000d2 T __mulsf3x
+000076ba 000000dc T __divsf3x
+000011d0 000000dc t (anonymous namespace)::validJoint(JointCalibration const&)
+0000348a 000000e4 t solveIK3D(Point3D const&)
+00000a5c 000000f8 t Servo::write(int)
+000042a6 000000fc t cancelAndReturnHome()
+00000168 000000fc t (anonymous namespace)::printHelp()::__c
+00004e86 000000fe t onButtonPressed(unsigned char)
+000020ce 00000104 t (anonymous namespace)::validSlot(unsigned char)
+000013ba 0000010a t parseNumber(char const*, float&)
+00001f4e 00000110 t printDecimal(float, unsigned char)
+00002616 00000128 t (anonymous namespace)::strokeSteps(unsigned char)
+00001014 00000130 t (anonymous namespace)::curveKnots(unsigned char, TeachPoint&, TeachPoint&, TeachPoint&, TeachPoint&)
+00000c7c 0000013a t (anonymous namespace)::curveAxis(float, float, float, float, (anonymous namespace)::CurveWeights const&)
+0000273e 00000146 t (anonymous namespace)::startDrawing(TaskKind, ShapeId, TeachPoint const&, TeachPoint const&)
+00006494 00000174 T __vector_11
+0000291c 00000180 t solveFK(float, float)
+00001dc4 0000018a t updateRecording(unsigned long, Pose const&)
+00002a9c 000001a0 t solveFK3D(float, float, float)
+00005374 000001c4 t (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)
+00800267 000001e0 b (anonymous namespace)::frames
+00000dfc 000001f4 t (anonymous namespace)::drawVertex(unsigned char, TeachPoint&)
+00002d8e 00000206 t (anonymous namespace)::executePlayback(unsigned long)
+00004064 00000242 t (anonymous namespace)::validateOne()
+00002f94 00000270 t solveIK(float, float)
+00003204 00000286 t inverse3D(Point3D const&, IKResult3D&)
+000017c2 0000031a t (anonymous namespace)::observe(Pose const&, unsigned int)
+000022f6 00000320 t centripetalSample(TeachPoint const&, TeachPoint const&, TeachPoint const&, TeachPoint const&, float, TeachPoint&)
+00004fce 000003a6 t executePickCommand(char* const*, unsigned char)
+00003cba 000003aa t (anonymous namespace)::execute(unsigned long)
+000043a2 000003f2 t updateManualControl(unsigned long, JoystickInput const&)
+000048de 00000578 t (anonymous namespace)::dispatchServiceAction(Action const&, float const*)
+000035d0 000006ea t (anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]
+00006812 00000a6c T main
+00005538 00000e1a t pollSerial()

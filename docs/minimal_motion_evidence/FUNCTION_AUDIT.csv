@@ -1,0 +1,187 @@
+﻿source,line,function,class,Flash linked symbol (not additive),necessity / simpler alternative / overlap,"bounded work, not measured AVR time"
+include/button_protocol.h,6,crc,B,内联/折叠/条件未链接；不能独立归因,完整帧与CRC约束：防止噪声/非法编号进入业务；和epoch检查互补。,8字节帧，CRC48位步
+include/button_protocol.h,14,encode,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,8字节帧，CRC48位步
+include/button_protocol.h,18,valid,B,内联/折叠/条件未链接；不能独立归因,完整帧与CRC约束：防止噪声/非法编号进入业务；和epoch检查互补。,8字节帧，CRC48位步
+src/app_controller.cpp,13,currentWorkflow,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,14,initializeApplication,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,18,dispatchServiceAction,A,"1400 B (anonymous namespace)::dispatchServiceAction(Action const&, float const*)",参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,55,dispatchAction,B,"48 B dispatchAction(Action const&, float const*)",上下文优先级与保存互斥：否则绘图B3变回放、录制时B1抓放；各入口复用同一分发。,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,64,onButtonPressed,B,254 B onButtonPressed(unsigned char),上下文优先级与保存互斥：否则绘图B3变回放、录制时B1抓放；各入口复用同一分发。,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,95,executeDrawCommand,A,"5 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c; 5 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c; 6 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c; 6 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c; 16 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)::__c; 452 B (anonymous namespace)::executeDrawCommand(char* const*, unsigned char)",参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,120,executeAppCommand,A,"5 B executeAppCommand(char* const*, unsigned char, bool&)::__c; 5 B executeAppCommand(char* const*, unsigned char, bool&)::__c; 6 B executeAppCommand(char* const*, unsigned char, bool&)::__c; 41 B executeAppCommand(char* const*, unsigned char, bool&)::__c; 63 B executeAppCommand(char* const*, unsigned char, bool&)::__c",参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/app_controller.cpp,173,printApplicationStatus,A,3 B printApplicationStatus()::__c; 8 B printApplicationStatus()::__c; 8 B printApplicationStatus()::__c; 10 B printApplicationStatus()::__c; 10 B printApplicationStatus()::__c,参见模块决策；接口保留，未增加任务所有者,4键常数分支；服务noinline隔离取消栈
+src/arm.cpp,19,withinLimits,B,"90 B (anonymous namespace)::withinLimits(float, JointControl const&)",输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,24,canApplyPose,B,92 B (anonymous namespace)::canApplyPose(Pose const&),输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,40,initializeArm,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4轴有界扫描；无IK
+src/arm.cpp,61,commandedPose,A,42 B commandedPose(),参见模块决策；接口保留，未增加任务所有者,4轴有界扫描；无IK
+src/arm.cpp,70,goalPose,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4轴有界扫描；无IK
+src/arm.cpp,79,isSafePlanarPose,B,"128 B isSafePlanarPose(float, float)",输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,87,isSafePose,B,96 B isSafePose(Pose const&),输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,97,requestPose,B,90 B requestPose(Pose const&),输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,110,applyPoseImmediate,B,内联/折叠/条件未链接；不能独立归因,输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,135,prepareOutputPose,B,"122 B prepareOutputPose(Pose const&, Pose&)",输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,147,applyPendingPose,B,内联/折叠/条件未链接；不能独立归因,输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,158,hasPendingPose,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4轴有界扫描；无IK
+src/arm.cpp,163,isArmHeld,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,4轴有界扫描；无IK
+src/arm.cpp,168,holdArm,B,44 B holdArm(),输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/arm.cpp,177,resumeArm,B,内联/折叠/条件未链接；不能独立归因,输出全姿态/量化校验与 HOLD：否则越组合限位、禁用轴虚假移动或待发帧越过暂停；入口和输出检查针对不同时间点，不能整体合并。,4轴有界扫描；无IK
+src/button_link.cpp,13,buttonLinkConfigured,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,16字节/轮，CRC每帧48位步
+src/button_link.cpp,14,initializeButtonLink,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,16字节/轮，CRC每帧48位步
+src/button_link.cpp,15,feedButtonByte,B,"7 B feedButtonByte(char, unsigned long)::__c",epoch/序号/CRC/超时：否则重启、丢字节、重复帧触发业务；保留一个接收会话，非第二套按钮状态机。,16字节/轮，CRC每帧48位步
+src/button_link.cpp,34,pollButtonLink,B,内联/折叠/条件未链接；不能独立归因,epoch/序号/CRC/超时：否则重启、丢字节、重复帧触发业务；保留一个接收会话，非第二套按钮状态机。,16字节/轮，CRC每帧48位步
+src/button_link.cpp,53,buttonLinkConfigured,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,16字节/轮，CRC每帧48位步
+src/button_link.cpp,60,initializeButtonLink,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,16字节/轮，CRC每帧48位步
+src/button_link.cpp,66,feedButtonByte,B,"7 B feedButtonByte(char, unsigned long)::__c",epoch/序号/CRC/超时：否则重启、丢字节、重复帧触发业务；保留一个接收会话，非第二套按钮状态机。,16字节/轮，CRC每帧48位步
+src/button_link.cpp,81,pollButtonLink,B,内联/折叠/条件未链接；不能独立归因,epoch/序号/CRC/超时：否则重启、丢字节、重复帧触发业务；保留一个接收会话，非第二套按钮状态机。,16字节/轮，CRC每帧48位步
+src/command_text.cpp,2,commandIndex,A,"74 B commandIndex(char const*, char const*)",参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/commands.cpp,20,parseNumber,B,"266 B parseNumber(char const*, float&)",严格解析及每轮串口限额：否则坏输入成为运动、串口淹没控制；一个共用数字解析器已是简单替代。,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,40,parseNumbers,B,"62 B parseNumbers(char* const*, unsigned char, float*)",严格解析及每轮串口限额：否则坏输入成为运动、串口淹没控制；一个共用数字解析器已是简单替代。,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,48,result,A,3 B (anonymous namespace)::result(bool)::__c; 12 B (anonymous namespace)::result(bool),参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,49,invalid,A,8 B (anonymous namespace)::invalid(),参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,50,printIK,A,5 B (anonymous namespace)::printIK(IKResult const&)::__c; 7 B (anonymous namespace)::printIK(IKResult const&)::__c; 78 B (anonymous namespace)::printIK(IKResult const&),参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,54,printStatus,A,3 B (anonymous namespace)::printStatus()::__c; 5 B (anonymous namespace)::printStatus()::__c; 6 B (anonymous namespace)::printStatus()::__c; 7 B (anonymous namespace)::printStatus()::__c; 7 B (anonymous namespace)::printStatus()::__c; 7 B (anonymous namespace)::printStatus()::__c; 7 B (anonymous namespace)::printStatus()::__c; 7 B (anonymous namespace)::printStatus()::__c; 8 B (anonymous namespace)::printStatus()::__c; 11 B (anonymous namespace)::printStatus()::__c; 14 B (anonymous namespace)::printStatus()::__c,参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,68,printHelp,A,65 B (anonymous namespace)::printHelp()::__c; 252 B (anonymous namespace)::printHelp()::__c,参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,77,angleTriple,B,内联/折叠/条件未链接；不能独立归因,严格解析及每轮串口限额：否则坏输入成为运动、串口淹没控制；一个共用数字解析器已是简单替代。,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,89,executeLine,A,5 B (anonymous namespace)::executeLine(char*)::__c; 5 B (anonymous namespace)::executeLine(char*)::__c; 6 B (anonymous namespace)::executeLine(char*)::__c; 79 B (anonymous namespace)::executeLine(char*)::__c,参见模块决策；接口保留，未增加任务所有者,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/commands.cpp,164,pollSerial,B,21 B pollSerial()::__c; 3610 B pollSerial(),严格解析及每轮串口限额：否则坏输入成为运动、串口淹没控制；一个共用数字解析器已是简单替代。,64字节/轮、7token、4轴；STATUS打印可能等待TX
+src/control_error.cpp,14,lastControlError,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/control_error.cpp,15,rejectControl,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/control_error.cpp,16,clearControlError,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/control_error.cpp,17,printControlError,A,5 B printControlError()::__c; 42 B printControlError(),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/control_settings.cpp,5,drawingFeed,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,常数次比较
+src/control_settings.cpp,6,setDrawingFeed,B,内联/折叠/条件未链接；不能独立归因,有界且有限速度：否则NaN/零/无穷造成时长失效；按任务的不同物理时间契约分开。,常数次比较
+src/control_settings.cpp,7,manualSpeedScale,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,常数次比较
+src/control_settings.cpp,8,setManualSpeedScale,B,内联/折叠/条件未链接；不能独立归因,有界且有限速度：否则NaN/零/无穷造成时长失效；按任务的不同物理时间契约分开。,常数次比较
+src/control_settings.cpp,12,adjustManualSpeedScale,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,常数次比较
+src/control_settings.cpp,15,automaticSpeed,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,常数次比较
+src/control_settings.cpp,16,setAutomaticSpeed,B,内联/折叠/条件未链接；不能独立归因,有界且有限速度：否则NaN/零/无穷造成时长失效；按任务的不同物理时间契约分开。,常数次比较
+src/control_settings.cpp,20,resetControlSettings,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,常数次比较
+src/hardware_config.cpp,39,validJoint,B,220 B (anonymous namespace)::validJoint(JointCalibration const&),标定有效与数值合法门禁：否则空白或错误配置进入实际运动；编译期常量可折叠但保留测试可变分支。,2标定轴、至多2HOME中间点
+src/hardware_config.cpp,44,configureCalibratedJoints,B,内联/折叠/条件未链接；不能独立归因,标定有效与数值合法门禁：否则空白或错误配置进入实际运动；编译期常量可折叠但保留测试可变分支。,2标定轴、至多2HOME中间点
+src/hardware_config.cpp,55,cartesianCalibrationValid,B,102 B cartesianCalibrationValid(),标定有效与数值合法门禁：否则空白或错误配置进入实际运动；编译期常量可折叠但保留测试可变分支。,2标定轴、至多2HOME中间点
+src/hardware_config.cpp,62,gripperCalibrationValid,B,46 B gripperCalibrationValid(),标定有效与数值合法门禁：否则空白或错误配置进入实际运动；编译期常量可折叠但保留测试可变分支。,2标定轴、至多2HOME中间点
+src/hardware_config.cpp,68,homeCalibrationValid,B,32 B homeCalibrationValid(),标定有效与数值合法门禁：否则空白或错误配置进入实际运动；编译期常量可折叠但保留测试可变分支。,2标定轴、至多2HOME中间点
+src/joystick.cpp,17,quantizeAxis,B,内联/折叠/条件未链接；不能独立归因,死区与回中判定：否则ADC噪声积分、自动完成后摇杆立即抢占；配置唯一存于PROGMEM。,4路ADC；实测ADC/ISR时延未测
+src/joystick.cpp,28,readJoysticks,A,190 B readJoysticks(),参见模块决策；接口保留，未增加任务所有者,4路ADC；实测ADC/ISR时延未测
+src/joystick.cpp,42,joysticksCentered,B,30 B joysticksCentered(JoystickInput const&),死区与回中判定：否则ADC噪声积分、自动完成后摇杆立即抢占；配置唯一存于PROGMEM。,4路ADC；实测ADC/ISR时延未测
+src/kinematics.cpp,15,solveFK,A,"384 B solveFK(float, float)",参见模块决策；接口保留，未增加任务所有者,base至多3候选；数学库耗时未实测
+src/kinematics.cpp,30,solveIK,A,"624 B solveIK(float, float)",参见模块决策；接口保留，未增加任务所有者,base至多3候选；数学库耗时未实测
+src/kinematics.cpp,67,solveFK3D,A,"416 B solveFK3D(float, float, float)",参见模块决策；接口保留，未增加任务所有者,base至多3候选；数学库耗时未实测
+src/kinematics.cpp,86,inverse3D,B,"646 B inverse3D(Point3D const&, IKResult3D&)",固定物理解支、标定门禁及FK复核：否则错误解支/工具变换误差进入输出；R2只删除计时FK，不删解验证FK。,base至多3候选；数学库耗时未实测
+src/kinematics.cpp,124,solveIK3D,B,228 B solveIK3D(Point3D const&),固定物理解支、标定门禁及FK复核：否则错误解支/工具变换误差进入输出；R2只删除计时FK，不删解验证FK。,base至多3候选；数学库耗时未实测
+src/main.cpp,28,reportTiming,C→精简,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/main.cpp,47,setup,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/main.cpp,65,loop,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/manual_control.cpp,21,axisVelocity,A,"110 B (anonymous namespace)::axisVelocity(signed char, float, float)",参见模块决策；接口保留，未增加任务所有者,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,26,getControlMode,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,30,setControlMode,B,140 B setControlMode(ControlMode),回中重新武装和连续目标：否则暂停积压时间或整数截断造成跳跃/不动；R1阻塞时只清武装和更新时间。,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,40,updateManualControl,C→精简,"1010 B updateManualControl(unsigned long, JoystickInput const&)",参见模块决策；接口保留，未增加任务所有者,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,44,syncManualTarget,B,86 B syncManualTarget(unsigned long),回中重新武装和连续目标：否则暂停积压时间或整数截断造成跳跃/不动；R1阻塞时只清武装和更新时间。,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,49,initializeManualControl,B,内联/折叠/条件未链接；不能独立归因,回中重新武装和连续目标：否则暂停积压时间或整数截断造成跳跃/不动；R1阻塞时只清武装和更新时间。,每tick至多1 IK，dt截到40ms
+src/manual_control.cpp,52,updateManualControl,C→精简,"1010 B updateManualControl(unsigned long, JoystickInput const&)",参见模块决策；接口保留，未增加任务所有者,每tick至多1 IK，dt截到40ms
+src/motion.cpp,39,isDrawingKind,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,42,drawCount,A,36 B (anonymous namespace)::drawCount(),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,47,drawVertex,A,"500 B (anonymous namespace)::drawVertex(unsigned char, TeachPoint&)",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,56,curveKnots,A,"304 B (anonymous namespace)::curveKnots(unsigned char, TeachPoint&, TeachPoint&, TeachPoint&, TeachPoint&)",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,62,strokeSteps,C→精简,296 B (anonymous namespace)::strokeSteps(unsigned char),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,78,pointPose,A,"98 B (anonymous namespace)::pointPose(Point3D const&, Pose&)",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,83,drawGoal,C→精简,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,130,maxDifference,A,"94 B (anonymous namespace)::maxDifference(Pose const&, Pose const&) [clone .constprop.7]",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,133,interpolate,A,"110 B (anonymous namespace)::interpolate(Pose const&, Pose const&, float) [clone .constprop.8]",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,136,sampleGoal,C→精简,"1770 B (anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,167,finish,B,10 B (anonymous namespace)::finish(bool)::__c; 11 B (anonymous namespace)::finish(bool)::__c; 13 B (anonymous namespace)::finish(bool)::__c; 64 B (anonymous namespace)::finish(bool),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,179,begin,B,"156 B (anonymous namespace)::begin(TaskKind, unsigned int)",单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,186,validateOne,B,11 B (anonymous namespace)::validateOne()::__c; 16 B (anonymous namespace)::validateOne()::__c; 28 B (anonymous namespace)::validateOne()::__c; 578 B (anonymous namespace)::validateOne(),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,219,executePlayback,A,518 B (anonymous namespace)::executePlayback(unsigned long),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,242,execute,C→精简,938 B (anonymous namespace)::execute(unsigned long),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,289,isMotionBusy,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,290,motionStatus,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,291,startJointMove,A,74 B startJointMove(Pose const&),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,297,startLine,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,306,startCartesianMove,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,315,updateMotion,A,"11 B updateMotion(unsigned long, bool)::__c",参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,339,pauseMotion,B,148 B pauseMotion(unsigned long),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,349,resumeMotion,B,46 B resumeMotion(unsigned long),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,354,cancelMotion,B,24 B cancelMotion(),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,355,startHome,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,359,startPickPlace,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,364,startPlayback,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,369,cancelAndReturnHome,B,252 B cancelAndReturnHome(),单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,385,drawingTaskActive,A,24 B drawingTaskActive(),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,387,startDrawing,B,"326 B (anonymous namespace)::startDrawing(TaskKind, ShapeId, TeachPoint const&, TeachPoint const&)",单owner、整条预检、逐输出检查、端点确认与恢复抬笔：分别防抢占、已动后才发现无解、量化越界、未输出即完成、纸面拖笔。,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,405,startDrawLine,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,406,startBasicShape,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,407,startPolyline,A,76 B startPolyline(),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/motion.cpp,411,startCurve,A,76 B startCurve(),参见模块决策；接口保留，未增加任务所有者,预检每loop1个<=1度子段；执行最多16几何段/tick；只应用一帧
+src/path_planner.cpp,12,pointDistance,A,"142 B pointDistance(TeachPoint const&, TeachPoint const&)",参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/path_planner.cpp,13,shapeVertexCount,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/path_planner.cpp,14,shapeVertex,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/path_planner.cpp,26,curveAxis,A,"314 B (anonymous namespace)::curveAxis(float, float, float, float, (anonymous namespace)::CurveWeights const&)",参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/path_planner.cpp,34,centripetalSample,A,"800 B centripetalSample(TeachPoint const&, TeachPoint const&, TeachPoint const&, TeachPoint const&, float, TeachPoint&)",参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/pick_place.cpp,20,readByte,B,4 B (anonymous namespace)::readByte(unsigned int),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,21,writeByte,B,"34 B (anonymous namespace)::writeByte(unsigned int, unsigned char)",有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,25,crcByte,B,"34 B (anonymous namespace)::crcByte(unsigned int, unsigned char)",有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,30,address,B,内联/折叠/条件未链接；不能独立归因,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,31,readWord,B,30 B (anonymous namespace)::readWord(unsigned int),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,32,validSlot,B,260 B (anonymous namespace)::validSlot(unsigned char),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,48,editable,B,44 B (anonymous namespace)::editable(),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,52,resetWorking,B,内联/折叠/条件未链接；不能独立归因,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,53,stageNumber,A,53 B (anonymous namespace)::stageNumber(char const*)::__c,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,57,capture,B,内联/折叠/条件未链接；不能独立归因,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,69,isPickSaving,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,70,pickStageMask,A,22 B pickStageMask(unsigned char),参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,71,restore,B,150 B restore(),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,80,loadPickConfiguration,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,81,initializePickConfiguration,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,87,savePickConfiguration,B,内联/折叠/条件未链接；不能独立归因,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,94,updatePickPersistence,B,17 B updatePickPersistence()::__c,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,121,pickCalibrationValid,B,22 B pickCalibrationValid(unsigned char),有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,124,pickStageSpeed,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,125,pickStageDwell,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,126,getPickStage,B,内联/折叠/条件未链接；不能独立归因,有效位/CRC/双槽最后提交及编辑互斥：否则断写/空数据抓放或运动中改路径；R3有真实固定工位后才替代。,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,136,executePickCommand,A,"6 B executePickCommand(char* const*, unsigned char)::__c; 7 B executePickCommand(char* const*, unsigned char)::__c; 37 B executePickCommand(char* const*, unsigned char)::__c; 934 B executePickCommand(char* const*, unsigned char)",参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,175,setSyntheticPickProgram,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pick_place.cpp,180,clearSyntheticPickPrograms,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,保存每loop至多1字节；LOAD147字节同步写仍可能阻塞
+src/pin_uart.cpp,33,initializePinUart,B,内联/折叠/条件未链接；不能独立归因,采样状态/溢出清队列：否则残缺字节或旧事件被当有效帧；Timer2不占Servo Timer1。,ISR每次1位，16字节固定环
+src/pin_uart.cpp,41,readPinUart,B,内联/折叠/条件未链接；不能独立归因,采样状态/溢出清队列：否则残缺字节或旧事件被当有效帧；Timer2不占Servo Timer1。,ISR每次1位，16字节固定环
+src/pin_uart.cpp,45,pinUartOverflow,B,内联/折叠/条件未链接；不能独立归因,采样状态/溢出清队列：否则残缺字节或旧事件被当有效帧；Timer2不占Servo Timer1。,ISR每次1位，16字节固定环
+src/pin_uart.cpp,13,ISR(PCINT0_vect),B,内联/折叠/条件未链接；不能独立归因,采样状态/溢出清队列：否则残缺字节或旧事件被当有效帧；Timer2不占Servo Timer1。,ISR每次1位，16字节固定环
+src/pin_uart.cpp,20,ISR(TIMER2_COMPA_vect),B,内联/折叠/条件未链接；不能独立归因,采样状态/溢出清队列：否则残缺字节或旧事件被当有效帧；Timer2不占Servo Timer1。,ISR每次1位，16字节固定环
+src/recording.cpp,13,compact,B,内联/折叠/条件未链接；不能独立归因,固定数组/压缩误差界/时间戳：否则复杂动作在15秒前满、重放失时或谎报精度；没有第二缓冲与递归。,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,35,observe,B,"794 B (anonymous namespace)::observe(Pose const&, unsigned int)",固定数组/压缩误差界/时间戳：否则复杂动作在15秒前满、重放失时或谎报精度；没有第二缓冲与递归。,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,61,finalize,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,63,printRecordingStatus,A,5 B printRecordingStatus()::__c; 5 B printRecordingStatus()::__c; 6 B printRecordingStatus()::__c; 7 B printRecordingStatus()::__c; 7 B printRecordingStatus()::__c; 10 B printRecordingStatus()::__c; 112 B printRecordingStatus(),参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,71,isRecording,A,16 B isRecording(),参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,72,hasRecording,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,73,recordingStatus,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,74,clearRecording,A,16 B clearRecording(),参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,75,getRecordedFrame,B,"48 B getRecordedFrame(unsigned char, RecordedFrame&)",固定数组/压缩误差界/时间戳：否则复杂动作在15秒前满、重放失时或谎报精度；没有第二缓冲与递归。,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,79,startRecording,A,13 B startRecording(unsigned long)::__c; 14 B startRecording(unsigned long)::__c,参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,86,stopRecording,A,11 B stopRecording(unsigned long)::__c,参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/recording.cpp,92,updateRecording,A,"8 B updateRecording(unsigned long, Pose const&)::__c; 12 B updateRecording(unsigned long, Pose const&)::__c; 14 B updateRecording(unsigned long, Pose const&)::__c; 17 B updateRecording(unsigned long, Pose const&)::__c; 394 B updateRecording(unsigned long, Pose const&)",参见模块决策；接口保留，未增加任务所有者,压缩最多78*4残差比较+79帧搬移
+src/serial_format.cpp,4,printDecimal,A,"4 B printDecimal(float, unsigned char)::__c; 4 B printDecimal(float, unsigned char)::__c; 4 B printDecimal(float, unsigned char)::__c; 272 B printDecimal(float, unsigned char)",参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,22,printText,A,2 B printText(__FlashStringHelper const*),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,23,printLine,A,2 B printLine(__FlashStringHelper const*),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,24,printChar,A,2 B printChar(char),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,25,printNewline,A,6 B printNewline(),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,26,printUnsigned,A,8 B printUnsigned(unsigned int),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/serial_format.cpp,27,printlnUnsigned,A,14 B printlnUnsigned(unsigned int),参见模块决策；接口保留，未增加任务所有者,固定大小运算；微秒耗时未测
+src/teaching.cpp,15,mutableNow,B,44 B (anonymous namespace)::mutableNow(),高度有效/顺序排列/任务互斥：否则画中改Z、缺点或重复索引；仅保存XY+统一高度，未引入额外路径副本。,最多5点；捕获1次FK
+src/teaching.cpp,19,currentPoint,A,60 B (anonymous namespace)::currentPoint(),参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,23,teachingActive,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,24,markingActive,A,18 B markingActive(),参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,25,teachPointCount,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,26,teachSettings,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,27,drawSettingsValid,B,122 B drawSettingsValid(),高度有效/顺序排列/任务互斥：否则画中改Z、缺点或重复索引；仅保存XY+统一高度，未引入额外路径副本。,最多5点；捕获1次FK
+src/teaching.cpp,31,initializeTeaching,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,32,beginTeach,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,38,captureHeight,B,"104 B captureHeight(float&, bool&)",高度有效/顺序排列/任务互斥：否则画中改Z、缺点或重复索引；仅保存XY+统一高度，未引入额外路径副本。,最多5点；捕获1次FK
+src/teaching.cpp,45,captureTeachHeight,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,46,captureTeachAlignment,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,47,beginMarking,B,内联/折叠/条件未链接；不能独立归因,高度有效/顺序排列/任务互斥：否则画中改Z、缺点或重复索引；仅保存XY+统一高度，未引入额外路径副本。,最多5点；捕获1次FK
+src/teaching.cpp,56,markTeachPoint,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,67,clearTeachPoints,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,71,undoTeachPoint,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,80,exitTeach,A,内联/折叠/条件未链接；不能独立归因,参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK
+src/teaching.cpp,84,setTeachOrder,B,内联/折叠/条件未链接；不能独立归因,高度有效/顺序排列/任务互斥：否则画中改Z、缺点或重复索引；仅保存XY+统一高度，未引入额外路径副本。,最多5点；捕获1次FK
+src/teaching.cpp,95,getTeachPoint,A,"50 B getTeachPoint(unsigned char, TeachPoint&)",参见模块决策；接口保留，未增加任务所有者,最多5点；捕获1次FK

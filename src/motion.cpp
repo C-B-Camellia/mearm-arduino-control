@@ -23,7 +23,8 @@ struct MotionTask {
         struct { Point3D start,end; } cart;
     };
     uint32_t elapsed,lastUpdate,duration;
-    uint16_t validationSubstep,validationSubsteps;
+    // Validation scratch and execution distance are never live together.
+    union { struct { uint16_t validationSubstep,validationSubsteps; }; float segmentDistance; };
     uint16_t dwellRemaining;
     // PickPlace owns objectIndex; drawing owns the mandatory endpoint flag.
     union { uint8_t objectIndex; bool drawCheckpoint; };
@@ -68,7 +69,9 @@ uint16_t strokeSteps(uint8_t segment) {
         if(!drawVertex(segment,a) || !drawVertex(segment+1,b)) return 0;
         length=pointDistance(a,b);
     }
-    float steps=ceilf(length/0.75f);
+    // Geometric knots are independent of the 20 ms output clock.
+    // Retain every vertex; validate the same joint chords that will execute.
+    float steps=ceilf(length/5.0f);
     if(!isfinite(steps) || length<0.1f || steps>4096) return 0;
     return max(1,static_cast<int>(steps));
 }
@@ -79,6 +82,7 @@ bool pointPose(const Point3D& point,Pose& pose) {
 }
 bool drawGoal(uint16_t index,Pose& pose) {
     task.drawCheckpoint=true;
+    task.segmentDistance=0;
     uint8_t homeCount=hardwareConfig.homeViaCount+1;
     if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
     index-=homeCount;
@@ -89,6 +93,7 @@ bool drawGoal(uint16_t index,Pose& pose) {
     }
     if(index<=3) {
         if(!drawVertex(0,point)) return rejectControl(ControlError::Invalid);
+        if(index==3) task.segmentDistance=teachSettings().travelZ-teachSettings().drawZ;
         return pointPose({point.x,point.y,index==3?teachSettings().drawZ:teachSettings().travelZ},pose);
     }
     index-=3;
@@ -101,9 +106,13 @@ bool drawGoal(uint16_t index,Pose& pose) {
             TeachPoint a,b,c,d;
             if(task.status.kind==TaskKind::Curve) {
                 if(!curveKnots(segment,a,b,c,d) || !centripetalSample(a,b,c,d,t,point)) return rejectControl(ControlError::Invalid);
+                TeachPoint previous;
+                if(!centripetalSample(a,b,c,d,static_cast<float>(index-1)/steps,previous)) return rejectControl(ControlError::Invalid);
+                task.segmentDistance=pointDistance(previous,point);
             } else {
                 if(!drawVertex(segment,a) || !drawVertex(segment+1,b)) return rejectControl(ControlError::Invalid);
                 point={a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t};
+                task.segmentDistance=pointDistance(a,b)/steps;
             }
             return pointPose({point.x,point.y,teachSettings().drawZ},pose);
         }
@@ -111,6 +120,7 @@ bool drawGoal(uint16_t index,Pose& pose) {
     }
     if(index==1) {
         if(!drawVertex(drawCount()-1,point)) return rejectControl(ControlError::Invalid);
+        task.segmentDistance=teachSettings().travelZ-teachSettings().drawZ;
         return pointPose({point.x,point.y,teachSettings().travelZ},pose);
     }
     --index;
@@ -255,10 +265,10 @@ __attribute__((noinline)) void execute(uint32_t now) {
             // Paper feed limits pen down/stroke/up. HOME, air travel and return
             // use the existing joint speed instead of the paper feed.
             if(drawing && index>=penDown && index<=penUp) {
-                Point3D a=solveFK3D(task.segmentStart.angles[Base],task.segmentStart.angles[Shoulder],task.segmentStart.angles[Elbow]);
-                Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
-                float dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
-                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/drawingFeed())));
+                // The sampler already knows the Cartesian chord. Reconstructing
+                // both endpoints through FK adds six trigonometric evaluations
+                // per endpoint and introduces IK round-trip tolerance into timing.
+                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/drawingFeed())));
             }
         }
         task.elapsed+=dt; dt=0;
