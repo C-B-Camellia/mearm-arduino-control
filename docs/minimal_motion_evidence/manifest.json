@@ -48,5 +48,7 @@
     "uno.hex": "8103e27d3557c92e9fd04495a74f2fe52adc23b1fad18a4043e3346be8df7a6e",
     "uno_nano_link.elf": "a965ca6d91bb644eb33dfdb38639ef56c3c13f9937e212f8bb4e74675203ca21",
     "uno_nano_link.hex": "355280faf92840c00de3e5525601059945fdedeb1aba32a6933b0ae66d880bb3"
-  }
+  },
+  "code_commit": "7513888ba97bf0b4af395f65c4d52611205da937",
+  "r1_commit": "b7d96067703f6c9ee29ad12bd5289e7bb67ab600"
 }

@@ -6,7 +6,7 @@
 开始时工作树干净；本报告 RC0 指最新已提交源码 `80e1e32c834ecc4da5a39f73d6884fc345c4f27b`（代码来自 bd1fee7），不是把更早的 aef334b 当作当前源码。原集成分支 `codex/full-prototype-integration-2026-10-14` 未移动。原始源码仍可由该 SHA 恢复，RC0 重建、测试和输出序列保存在 `minimal_motion_evidence/rc0-*`；隔离历史构建在 `.pio/minimal-rc0-80e1/`，不能上传。
 
 R1 checkpoint：`b7d96067703f6c9ee29ad12bd5289e7bb67ab600`。
-R2 的代码、回归和本报告为下一个独立 checkpoint；最终准确 SHA 见 Git log 与 evidence/manifest.json 的 code_commit 字段（文档封存提交不改变生产源码）。
+R2代码与回归checkpoint：`7513888ba97bf0b4af395f65c4d52611205da937`。最终文档封存提交不改变生产源码；二进制身份见minimal_motion_evidence/manifest.json。
 
 |版本|uno Flash/SRAM B|完整 D10 Flash/SRAM B|相对上一步 D10|
 |---|---:|---:|---:|

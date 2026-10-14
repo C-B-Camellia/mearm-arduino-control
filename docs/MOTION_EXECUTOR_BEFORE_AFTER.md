@@ -2,7 +2,7 @@
 
 ## 证据与可复现范围
 
-RC0=80e1e32；R1=b7d9606；R2=本独立分支的代码checkpoint，最终SHA见manifest.json/code_commit。生产配置使用当前Bringup实测硬件数值，不注入合成标定。所有运动数据均为桌面模拟输出命令，**没有舵机位置反馈、没有烧录/实机执行**。
+RC0=80e1e32；R1=b7d9606；R2=`7513888ba97bf0b4af395f65c4d52611205da937`，二进制身份见minimal_motion_evidence/manifest.json。生产配置使用当前Bringup实测硬件数值，不注入合成标定。所有运动数据均为桌面模拟输出命令，**没有舵机位置反馈、没有烧录/实机执行**。
 
 重跑当前测试（项目根目录PowerShell）：
 
