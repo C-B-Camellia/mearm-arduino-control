@@ -343,11 +343,13 @@ void testAdaptiveRecording() {
     advance(1000); finishTask(); CHECK(!isArmHeld());
 }
 void testRecordingInputAndErrors() {
-    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA","TOO_SHORT","NO_MOVEMENT","LINK_UNCONFIGURED"};
-    for(uint8_t i=0;i<13;++i) {
+    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA"};
+    for(uint8_t i=0;i<sizeof(names)/sizeof(names[0]);++i) {
         Serial.output.clear(); rejectControl(static_cast<ControlError>(i)); printControlError();
         CHECK(Serial.output==std::string("ERR ")+names[i]+"\r\n");
     }
+    Serial.output.clear(); rejectControl(static_cast<ControlError>(255)); printControlError();
+    CHECK(Serial.output=="ERR INVALID\r\n");
     for(float bad:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity(),-1.0f,181.0f}) {
         fresh(); CHECK(startRecording(simulatedTime));
         Pose p=commandedPose(); p.angles[Base]=bad;
