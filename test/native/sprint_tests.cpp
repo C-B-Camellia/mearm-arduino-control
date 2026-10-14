@@ -635,19 +635,20 @@ void testFrozenTaskSpeeds() {
     for(uint8_t variant=0;variant<3;++variant) {
         prepareTeachFive(); send(variant==0?"SPEED 5":"SPEED 90");
         if(variant) send("H");
-        send(variant==2?"FEED 20":"FEED 10");
-        CHECK(drawingFeed()==(variant==2?20:10));
+        send("FEED 20"); CHECK(contains("INVALID"));
         send("DRAW POLY");
         while(motionStatus().state==MotionState::Validating) advance();
         uint32_t start=simulatedTime;
-        send("FEED 30"); CHECK(contains("BUSY") && drawingFeed()==(variant==2?20:10));
+        send("FEED 30"); CHECK(contains("INVALID"));
         finishTask(); duration[variant]=simulatedTime-start;
     }
-    CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
-    fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==25);
-    send("FEED 100.01"); CHECK(contains("INVALID") && drawingFeed()==25);
-    send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
-    send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
+    CHECK(duration[0]==duration[1] && duration[1]==duration[2]);
+    fresh();
+    for(const char* cmd:{"FEED", "FEED 0", "FEED 35", "FEED 12.5", "FEED 100.01"}) {
+        Serial.output.clear(); send(cmd); CHECK(contains("INVALID") && !isMotionBusy() && servoWrites.empty());
+    }
+    Serial.output.clear(); send("HELP"); CHECK(!contains("FEED"));
+    Serial.output.clear(); send("STATUS"); CHECK(!contains("feed=") && contains("pickNext=A"));
     // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.
     for(uint8_t variant=0;variant<2;++variant) {
         fresh(); hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();

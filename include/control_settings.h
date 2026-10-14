@@ -4,7 +4,13 @@ float manualSpeedScale();
 bool setManualSpeedScale(float scale);
 void adjustManualSpeedScale(bool faster);
 float automaticSpeed();
-float drawingFeed();
-bool setDrawingFeed(float mmPerSecond);
+// Development comparisons use -DMEARM_DRAW_SPEED_MM_S=...; no runtime setter.
+#ifndef MEARM_DRAW_SPEED_MM_S
+#define MEARM_DRAW_SPEED_MM_S 35.0f
+#endif
+constexpr float kDrawSpeedMmS = MEARM_DRAW_SPEED_MM_S;
+static_assert(kDrawSpeedMmS > 0.0f, "Drawing speed must be positive");
+// Preserve the field-fixes pen-down/up timing independently of stroke speed.
+constexpr float kPenTransitionSpeedMmS = 25.0f;
 bool setAutomaticSpeed(float speed);
 void resetControlSettings();

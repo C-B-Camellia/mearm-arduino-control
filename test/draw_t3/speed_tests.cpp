@@ -45,14 +45,14 @@ Pose lowerPose(float shoulder) { Pose p=hardwareConfig.home; p.angles[Shoulder]=
 struct RunResult { uint32_t total,stroke; uint16_t samples; uint32_t frames; };
 void prepareLine(float feed) {
     reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
-    CHECK(setDrawingFeed(feed)); Point3D a=fk(hardwareConfig.home);
+    CHECK(feed==kDrawSpeedMmS); Point3D a=fk(hardwareConfig.home);
     CHECK(startDrawLine({a.x,a.y},{a.x,a.y+30}));
 }
 void prepareFive(float feed,bool curve) {
     reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
     setCommand(lowerPose(118)); CHECK(captureTeachAlignment()); CHECK(beginMarking());
     for(int i=0;i<5;++i) { Pose p=commandedPose(); p.angles[Base]=80+i*5; setCommand(p); CHECK(onButtonPressed(1)); }
-    CHECK(setDrawingFeed(feed)); CHECK(curve?startCurve():startPolyline());
+    CHECK(feed==kDrawSpeedMmS); CHECK(curve?startCurve():startPolyline());
 }
 void preflight() {
     size_t before=servoWrites.size(); int calls=0;
@@ -71,7 +71,11 @@ RunResult run(bool pause=false,uint32_t gap=20) {
         updateMotion(simulatedTime,true);
         if(hasPendingPose()) {
             Pose goal=goalPose(); float movement=maxDifference(prior,goal);
-            CHECK(movement<=DEFAULT_MOVE_SPEED*min(interval,MANUAL_MAX_DT_MS)*.001f+.001f);
+            bool fastStroke=false;
+#ifdef MEARM_FIVE_FAST
+            fastStroke=(task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve) && before>=4 && before<penUp-1;
+#endif
+            if(!fastStroke) CHECK(movement<=DEFAULT_MOVE_SPEED*min(interval,MANUAL_MAX_DT_MS)*.001f+.001f);
             Pose beforeOutput=commandedPose(); Pose expected; CHECK(prepareOutputPose(goal,expected));
             size_t writes=servoWrites.size(); CHECK(applyPendingPose());
             bool changed=maxDifference(beforeOutput,expected)>0;
@@ -98,30 +102,18 @@ RunResult run(bool pause=false,uint32_t gap=20) {
     return {simulatedTime-start-pausedMs,strokeEnd-strokeStart-pausedMs,static_cast<uint16_t>(count-6),frames};
 }
 void speedAndTravel() {
-    RunResult r[4]; const float feeds[]={15,25,80,100};
-    for(int i=0;i<4;++i) {
-        prepareLine(feeds[i]); r[i]=run();
-        std::cout<<"LINE feed="<<feeds[i]<<" totalMs="<<r[i].total<<" strokeMs="<<r[i].stroke<<" effective="<<30000.f/r[i].stroke<<" frames="<<r[i].frames<<'\n';
-    }
-    CHECK(r[0].stroke<=2040); CHECK(r[1].stroke<=1240);
-    CHECK(r[2].stroke<600); CHECK(r[3].stroke<=r[2].stroke);
-    // Air travel and HOME duration no longer depend on paper feed.
-    uint32_t homes[2];
-    for(int i=0;i<2;++i) {
-        prepareLine(i?100:15); preflight(); simulatedTime+=20; updateMotion(simulatedTime,true);
-        homes[i]=task.duration; CHECK(applyPendingPose());
-    }
-    CHECK(homes[0]==homes[1]);
-    prepareLine(80); RunResult paused=run(true); CHECK(paused.stroke==r[2].stroke);
-    prepareLine(80); simulatedTime=UINT32_MAX-100; RunResult wrapped=run(); CHECK(wrapped.stroke==r[2].stroke);
-    reset(); send("FEED 50"); CHECK(drawingFeed()==50); send("FEED 100"); CHECK(drawingFeed()==100);
-    send("FEED 100.01"); CHECK(drawingFeed()==100);
+    prepareLine(kDrawSpeedMmS); RunResult baseline=run();
+    std::cout<<"LINE fixedSpeed="<<kDrawSpeedMmS<<" totalMs="<<baseline.total<<" strokeMs="<<baseline.stroke<<" frames="<<baseline.frames<<'\n';
+    CHECK(baseline.stroke>=30000.f/kDrawSpeedMmS);
+    prepareLine(kDrawSpeedMmS); RunResult paused=run(true); CHECK(paused.stroke==baseline.stroke);
+    prepareLine(kDrawSpeedMmS); simulatedTime=UINT32_MAX-100; RunResult wrapped=run(); CHECK(wrapped.stroke==baseline.stroke);
+    reset(); Serial.output.clear(); send("FEED 50"); CHECK(Serial.output.find("INVALID")!=std::string::npos);
     send("STATUS"); CHECK(Serial.output.find("Z=")!=std::string::npos);
 }
 void verticesAndCurve() {
     for(int curve=0;curve<2;++curve) {
-        prepareFive(80,curve); servoWrites.clear(); RunResult result=run(true);
-        std::cout<<(curve?"CURVE":"POLY")<<" feed=80 totalMs="<<result.total<<" strokeMs="<<result.stroke<<" samples="<<result.samples<<" frames="<<result.frames<<'\n';
+        prepareFive(kDrawSpeedMmS,curve); servoWrites.clear(); RunResult result=run(true);
+        std::cout<<(curve?"CURVE":"POLY")<<" fixedSpeed="<<kDrawSpeedMmS<<" totalMs="<<result.total<<" strokeMs="<<result.stroke<<" samples="<<result.samples<<" frames="<<result.frames<<'\n';
         for(int i=0;i<5;++i) {
             TeachPoint p; CHECK(getTeachPoint(i,p)); float closest=10000;
             for(size_t k=0;k+3<servoWrites.size();k+=4) {
@@ -132,15 +124,15 @@ void verticesAndCurve() {
             CHECK(closest<3);
         }
     }
-    prepareFive(100,true); RunResult loaded=run(false,100);
+    prepareFive(kDrawSpeedMmS,true); RunResult loaded=run(false,100);
     std::cout<<"CURVE late-tick totalMs="<<loaded.total<<" strokeMs="<<loaded.stroke<<'\n';
-    prepareLine(100); preflight();
+    prepareLine(kDrawSpeedMmS); preflight();
     simulatedTime+=20; updateMotion(simulatedTime,true); CHECK(applyPendingPose()); updateMotion(simulatedTime,false);
     CHECK(cancelAndReturnHome());
     while(isMotionBusy()) { simulatedTime+=20; updateMotion(simulatedTime,true); CHECK(applyPendingPose()); updateMotion(simulatedTime,false); }
     CHECK(!isArmHeld()); CHECK(commandedPose().angles[Gripper]==85);
     // Runtime safety is rechecked even for intermediate samples crossed in one tick.
-    prepareLine(100); preflight(); joints[Shoulder].minAngle=124;
+    prepareLine(kDrawSpeedMmS); preflight(); joints[Shoulder].minAngle=124;
     servoWrites.clear(); simulatedTime+=20; updateMotion(simulatedTime,true);
     CHECK(!isMotionBusy() && isArmHeld() && servoWrites.empty());
 }

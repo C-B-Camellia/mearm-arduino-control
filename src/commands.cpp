@@ -56,7 +56,6 @@ void printStatus() {
     uint8_t enabled=0;
     printText(F("J=")); for(uint8_t i=0;i<JointCount;++i) { printDecimal(joints[i].commandedAngle,0); printChar(' '); if(joints[i].outputEnabled) enabled|=1<<i; }
     printText(F("autoSpeed=")); printDecimal(automaticSpeed(),1);
-    printText(F(" feed=")); printDecimal(drawingFeed(),1);
     printText(F(" manualScale=")); printDecimal(manualSpeedScale());
     printText(F(" mode=")); Serial.print(getControlMode()==ControlMode::Joint?F("JOINT"):F("CART"));
     printText(F(" task=")); printUnsigned(static_cast<int>(s.kind)); printText(F(" phase=")); printUnsigned(static_cast<int>(s.state));
@@ -67,7 +66,7 @@ void printStatus() {
 }
 void printHelp() {
     printLine(F("J0..3 x,y,z IK/IK3 XY/XYZ LINE/RUNLINE\r\n"
-        "MODE JOINT/CART O/S H/L SPEED FEED\r\n"
+        "MODE JOINT/CART O/S H/L SPEED\r\n"
         "HOLD GO CANCEL STATUS HELP REC PLAY HOME A/B/C BTN 1..4\r\n"
         "TEACH MARK UNDO LIST ORDER CLEAR DRAW PICK"));
 }
@@ -99,7 +98,7 @@ void executeLine(char* line) {
     if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
     float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
     const char* c=tokens[0];
-    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0FEED\0"));
+    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0"));
     if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
         if(op==0) printIK(solveIK(v[0],v[1]));
         else if(op==1) {
@@ -131,9 +130,9 @@ void executeLine(char* line) {
         else invalid();
         return;
     }
-    if(count==2 && numbers && (op==7 || op==17)) {
+    if(count==2 && numbers && op==7) {
         if(isMotionBusy()) result(rejectControl(ControlError::Busy));
-        else if(op==7?setAutomaticSpeed(v[0]):setDrawingFeed(v[0])) result(true);
+        else if(setAutomaticSpeed(v[0])) result(true);
         else invalid();
         return;
     }

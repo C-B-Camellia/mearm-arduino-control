@@ -12,7 +12,7 @@ static Point3D countedFK(float a,float b,float c) { ++fkCalls; return solveFK3D(
 #undef solveFK3D
 #include <chrono>
 static void trace(float feed) {
-    reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true)); CHECK(setDrawingFeed(feed));
+    reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true)); CHECK(feed==kDrawSpeedMmS);
     Point3D a=fk(hardwareConfig.home);
     CHECK(startDrawLine({a.x,a.y},{a.x,a.y+20})); preflight();
     unsigned maximumIK=0,maximumFK=0,changed=0,frames=0,physical=0;
@@ -49,11 +49,11 @@ static void trace(float feed) {
              <<" floatZError="<<maxZ<<" floatCrossTrack="<<maxXY<<'\n';
 }
 static void allPaths() {
-    for(unsigned mode=0;mode<2;++mode) for(unsigned kind=0;kind<4;++kind) {
-        float feed=mode?100:25;
+    for(unsigned kind=0;kind<4;++kind) {
+        float feed=kDrawSpeedMmS;
         if(kind>=2) prepareFive(feed,kind==3);
         else {
-            reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true)); CHECK(setDrawingFeed(feed));
+            reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true)); CHECK(feed==kDrawSpeedMmS);
             Point3D a=fk(hardwareConfig.home);
             CHECK(kind==0?startDrawLine({a.x,a.y},{a.x,a.y+20}):startBasicShape(ShapeId::N,{a.x,a.y},{a.x+10,a.y+10}));
         }
@@ -116,6 +116,6 @@ int main() {
     fraction.angles[Base]+=1;
     CHECK(requestPose(fraction)); CHECK(applyPendingPose()); CHECK(servoWrites.size()==n+4);
     #endif
-    trace(15); trace(25); allPaths();
+    trace(kDrawSpeedMmS); allPaths();
     std::cout<<"PASS minimal executor "<<assertions<<" assertions\n";
 }

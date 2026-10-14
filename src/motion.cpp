@@ -272,13 +272,13 @@ __attribute__((noinline)) void execute(uint32_t now) {
             if(!(stroke && (task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve)))
 #endif
                 task.duration=max(task.duration,static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
-            // Paper feed limits pen down/stroke/up. HOME, air travel and return
-            // use the existing joint speed instead of the paper feed.
+            // Fixed stroke speed; preserve the existing pen-down/up timing.
+            // HOME, air travel and return keep their joint-speed timing.
             if(drawing && index>=penDown && index<=penUp) {
                 // The sampler already knows the Cartesian chord. Reconstructing
                 // both endpoints through FK adds six trigonometric evaluations
                 // per endpoint and introduces IK round-trip tolerance into timing.
-                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/drawingFeed())));
+                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/(stroke?kDrawSpeedMmS:kPenTransitionSpeedMmS))));
             }
         }
         task.elapsed+=dt; dt=0;

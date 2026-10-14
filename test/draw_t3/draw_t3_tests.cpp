@@ -106,12 +106,12 @@ void loggedEvidenceAndRoundTrip() {
              <<" IKJ="<<ik.j0<<'/'<<ik.j1<<'/'<<ik.j2<<" quantJ="<<quant.angles[0]<<'/'<<quant.angles[1]<<'/'<<quant.angles[2]<<" FKz="<<p.z<<" -> "<<fk(quant).z<<'\n';
     float dx=169.62f-144.77f,dy=-6.63f-32.18f;
     float length=sqrtf(dx*dx+dy*dy); uint16_t n=static_cast<uint16_t>(ceilf(length/.75f));
-    CHECK(MANUAL_CART_SLOW==25.0f && MANUAL_CART_FAST==100.0f); // Updated authorized manual tiers; old RC0 sampling ceiling is not a current invariant. CHECK(setDrawingFeed(40)); CHECK(setDrawingFeed(50));
+    CHECK(MANUAL_CART_SLOW==25.0f && MANUAL_CART_FAST==100.0f); // Updated authorized manual tiers; old RC0 sampling ceiling is not a current invariant.
     std::cout<<"LOGGED_P1_P2 illustrativeOnly length="<<length<<" samples="<<n<<" nominal15="<<length/15<<" nominal25="<<length/25<<'\n';
 }
 void trace(float feed,uint32_t gap,bool fastAck) {
     reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
-    CHECK(setDrawingFeed(feed)); Point3D a=fk(hardwareConfig.home); TeachPoint b{a.x,a.y+30};
+    CHECK(feed==kDrawSpeedMmS); Point3D a=fk(hardwareConfig.home); TeachPoint b{a.x,a.y+30};
     CHECK(startDrawLine({a.x,a.y},b)); uint16_t stroke=strokeSteps(0);
     int validations=0;
     while(motionStatus().state==MotionState::Validating) { updateMotion(simulatedTime,false); CHECK(!hasPendingPose()); CHECK(++validations<20000); }
@@ -140,6 +140,6 @@ int main() {
     measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
     std::cout<<std::fixed<<std::setprecision(5);
     CHECK(std::string(phase(4,40))=="PEN_DOWN");
-    compareCaptures(); quantizationScan(); loggedEvidenceAndRoundTrip(); trace(15,20,true); trace(25,20,true); trace(25,20,false); trace(25,100,true); trace(15,100,true);
+    compareCaptures(); quantizationScan(); loggedEvidenceAndRoundTrip(); trace(kDrawSpeedMmS,20,true); trace(kDrawSpeedMmS,20,false); trace(kDrawSpeedMmS,100,true);
     std::cout<<"PASS DRAW T3 diagnostic: "<<assertions<<" checks\n";
 }
