@@ -66,13 +66,10 @@ void printStatus() {
     printApplicationStatus();
 }
 void printHelp() {
-    printLine(F("IK XY LINE RUNLINE XYZ IK3 J0..3 x,y,z\r\n"
-        "MODE JOINT|CART; O/S H/L; SPEED FEED\r\n"
-        "HOLD GO CANCEL STATUS HELP; REC PLAY HOME A B C BTN 1..4\r\n"
-        "TEACH START/DRAWZ/TEACHZ/TRAVELZ/MARKING/EXIT MARK LIST CLEAR UNDO ORDER\r\n"
-        "DRAW POLY/CURVE/LINE/SHAPE N/TRIANGLE/Z/V"));
-    printLine(F("PICK SET/SHOW/SAVE/LOAD/CLEAR/SPEED/WAIT A..C 1..8 (SRC=2 DST=6)"));
-
+    printLine(F("J0..3 x,y,z IK/IK3 XY/XYZ LINE/RUNLINE\r\n"
+        "MODE JOINT/CART O/S H/L SPEED FEED\r\n"
+        "HOLD GO CANCEL STATUS HELP REC PLAY HOME A/B/C BTN 1..4\r\n"
+        "TEACH MARK UNDO LIST ORDER CLEAR DRAW PICK"));
 }
 bool angleTriple(char* line) {
     Pose pose=commandedPose(); uint8_t seen=0; char* save=nullptr;
@@ -103,8 +100,6 @@ void executeLine(char* line) {
     float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
     const char* c=tokens[0];
     int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0HELP\0FEED\0"));
-    float shortcut;
-    if(count==2 && parseNumber(c,shortcut) && numbers) { printIK(solveIK(shortcut,v[0])); return; }
     if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
         if(op==0) printIK(solveIK(v[0],v[1]));
         else if(op==1) {
