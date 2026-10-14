@@ -1,0 +1,33 @@
+BASE
+D:\Develop\MeArm-Bringup-2026-10-12\.pio\draw-t3-baseline-aef\.pio\build\uno_nano_link\firmware.elf  :
+section                     size      addr
+.data                        282   8388864
+.text                      31442         0
+.bss                        1025   8389146
+.comment                      17         0
+.note.gnu.avr.deviceinfo      64         0
+.debug_aranges               544         0
+.debug_info                 4703         0
+.debug_abbrev               1782         0
+.debug_line                 2904         0
+.debug_str                   520         0
+Total                      43283
+
+
+
+FIX
+D:\Develop\MeArm-Bringup-2026-10-12\.pio\build\uno_nano_link\firmware.elf  :
+section                     size      addr
+.data                        282   8388864
+.text                      31876         0
+.bss                        1025   8389146
+.comment                      17         0
+.note.gnu.avr.deviceinfo      64         0
+.debug_aranges               544         0
+.debug_info                 4703         0
+.debug_abbrev               1782         0
+.debug_line                 2904         0
+.debug_str                   520         0
+Total                      43717
+
+

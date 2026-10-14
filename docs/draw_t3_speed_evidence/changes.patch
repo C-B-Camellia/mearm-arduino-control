@@ -1,0 +1,474 @@
+diff --git a/src/app_controller.cpp b/src/app_controller.cpp
+index 3a32e6c..020d219 100644
+--- a/src/app_controller.cpp
++++ b/src/app_controller.cpp
+@@ -175,4 +175,7 @@ void printApplicationStatus() {
+     printText(F("workflow=")); printlnUnsigned(static_cast<int>(currentWorkflow()));
+     printRecordingStatus();
+     printText(F("points=")); printUnsigned(teachPointCount()); printText(F(" paper=")); printlnUnsigned(drawSettingsValid());
++    const TeachSettings& z=teachSettings();
++    printText(F("Z=")); printDecimal(z.drawZ); printChar('/'); printDecimal(z.teachZ); printChar('/'); printDecimal(z.travelZ);
++    printChar(' '); printlnUnsigned(z.drawValid | (z.teachValid<<1) | (z.travelValid<<2));
+ }
+diff --git a/src/control_settings.cpp b/src/control_settings.cpp
+index a46ea3f..e2e59c7 100644
+--- a/src/control_settings.cpp
++++ b/src/control_settings.cpp
+@@ -3,7 +3,7 @@
+ #include <math.h>
+ namespace { float manualScale=1.0f; float autoSpeed=DEFAULT_MOVE_SPEED; float drawFeed=25.0f; }
+ float drawingFeed() { return drawFeed; }
+-bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>40) return false; drawFeed=s; return true; }
++bool setDrawingFeed(float s) { if(!isfinite(s) || s<1 || s>MANUAL_CART_FAST) return false; drawFeed=s; return true; }
+ float manualSpeedScale() { return manualScale; }
+ bool setManualSpeedScale(float s) {
+     if(!isfinite(s) || s<0.75f || s>1.5f) return false;
+diff --git a/src/motion.cpp b/src/motion.cpp
+index 39c2a6a..dfeedba 100644
+--- a/src/motion.cpp
++++ b/src/motion.cpp
+@@ -25,7 +25,8 @@ struct MotionTask {
+     uint32_t elapsed,lastUpdate,duration;
+     uint16_t validationSubstep,validationSubsteps;
+     uint16_t dwellRemaining;
+-    uint8_t objectIndex;
++    // PickPlace owns objectIndex; drawing owns the mandatory endpoint flag.
++    union { uint8_t objectIndex; bool drawCheckpoint; };
+     ShapeId shape;
+     bool recoveryLift;
+     bool segmentLoaded,endpointQueued;
+@@ -77,6 +78,7 @@ bool pointPose(const Point3D& point,Pose& pose) {
+     pose.angles[Base]=ik.j0; pose.angles[Shoulder]=ik.j1; pose.angles[Elbow]=ik.j2; return true;
+ }
+ bool drawGoal(uint16_t index,Pose& pose) {
++    task.drawCheckpoint=true;
+     uint8_t homeCount=hardwareConfig.homeViaCount+1;
+     if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
+     index-=homeCount;
+@@ -94,6 +96,7 @@ bool drawGoal(uint16_t index,Pose& pose) {
+         uint16_t steps=strokeSteps(segment);
+         if(!steps) return rejectControl(ControlError::Invalid);
+         if(index<=steps) {
++            task.drawCheckpoint=index==steps; // Keep all taught vertices/corners.
+             float t=static_cast<float>(index)/steps;
+             TeachPoint a,b,c,d;
+             if(task.status.kind==TaskKind::Curve) {
+@@ -229,30 +232,48 @@ __attribute__((noinline)) void executePlayback(uint32_t now) {
+ __attribute__((noinline)) void execute(uint32_t now) {
+     if(task.endpointQueued) return;
+     if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints>0) { executePlayback(now); return; }
+-    if(!task.segmentLoaded) {
+-        Point3D previous{};
+-        if(isDrawingKind(task.status.kind)) previous=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
+-        task.segmentStart=commandedPose();
+-        if(!sampleGoal(task.status.completedWaypoints+1,task.segmentTarget)) { finish(true); return; }
+-        task.elapsed=0; task.segmentLoaded=true;
+-        float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
+-        if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || isDrawingKind(task.status.kind)) speed=DEFAULT_MOVE_SPEED;
+-        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
+-            speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
+-        task.duration=max(static_cast<uint32_t>(WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
+-        if(isDrawingKind(task.status.kind)) {
+-            Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
+-            float dx=previous.x-b.x,dy=previous.y-b.y,dz=previous.z-b.z;
+-            float feed=drawingFeed();
+-            task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/feed)));
++    bool drawing=isDrawingKind(task.status.kind);
++    uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
++    // Bounded work, one output frame. Fine geometric samples may share a tick;
++    // mandatory HOME/pen/vertex endpoints still wait for output acknowledgement.
++    for(uint8_t advanced=0;advanced<16;++advanced) {
++        if(!task.segmentLoaded) {
++            // Preserve the continuous drawing trajectory across integer outputs.
++            task.segmentStart=drawing?task.segmentTarget:commandedPose();
++            uint16_t index=task.status.completedWaypoints+1;
++            if(!sampleGoal(index,task.segmentTarget)) { finish(true); return; }
++            if(!drawing) task.elapsed=0;
++            task.segmentLoaded=true;
++            uint16_t penDown=hardwareConfig.homeViaCount+4;
++            uint16_t penUp=task.status.totalWaypoints-hardwareConfig.homeViaCount-1;
++            bool stroke=drawing && index>penDown && index<penUp;
++            float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
++            if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || drawing) speed=DEFAULT_MOVE_SPEED;
++            if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
++                speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
++            task.duration=max(static_cast<uint32_t>(stroke?1:WAYPOINT_DELAY_MS),static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
++            // Paper feed limits pen down/stroke/up. HOME, air travel and return
++            // use the existing joint speed instead of the paper feed.
++            if(drawing && index>=penDown && index<=penUp) {
++                Point3D a=solveFK3D(task.segmentStart.angles[Base],task.segmentStart.angles[Shoulder],task.segmentStart.angles[Elbow]);
++                Point3D b=solveFK3D(task.segmentTarget.angles[Base],task.segmentTarget.angles[Shoulder],task.segmentTarget.angles[Elbow]);
++                float dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
++                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(sqrtf(dx*dx+dy*dy+dz*dz)*1000.0f/drawingFeed())));
++            }
+         }
++        task.elapsed+=dt; dt=0;
++        bool reached=task.elapsed>=task.duration;
++        Pose p=interpolate(task.segmentStart,task.segmentTarget,reached?1.0f:static_cast<float>(task.elapsed)/task.duration);
++        // Validate even skipped geometric endpoints; Servo is applied once by main.
++        if(!requestPose(p)) { rejectControl(ControlError::Unsafe); finish(true); return; }
++        if(!reached) return;
++        if(!drawing || task.drawCheckpoint) {
++            task.elapsed=task.duration; task.endpointQueued=true; return;
++        }
++        task.elapsed-=task.duration; ++task.status.completedWaypoints; task.segmentLoaded=false;
+     }
+-    uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
+-    task.elapsed=min(task.duration,task.elapsed+dt);
+-    float t=static_cast<float>(task.elapsed)/task.duration;
+-    Pose p=interpolate(task.segmentStart,task.segmentTarget,t);
+-    if(!requestPose(p)) { rejectControl(ControlError::Unsafe); finish(true); return; }
+-    task.endpointQueued=task.elapsed==task.duration;
++    // Saturation slows the path instead of accumulating a future catch-up jump.
++    task.elapsed=0;
+ }
+ }
+ bool isMotionBusy() { return task.status.state!=MotionState::Idle; }
+@@ -294,6 +315,7 @@ void updateMotion(uint32_t now,bool controlDue) {
+     }
+     if(task.endpointQueued && !hasPendingPose()) {
+         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
++        if(isDrawingKind(task.status.kind)) task.elapsed=0;
+         if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
+             task.elapsed=0; task.lastUpdate=now; printLine(F("PLAY START"));
+         }
+diff --git a/test/draw_t3/draw_t3_tests.cpp b/test/draw_t3/draw_t3_tests.cpp
+new file mode 100644
+index 0000000..2a10970
+--- /dev/null
++++ b/test/draw_t3/draw_t3_tests.cpp
+@@ -0,0 +1,145 @@
++// Desktop diagnostic only: includes the current executor to observe private
++// phase targets/durations. run.ps1 excludes motion.cpp from the other sources.
++#include "Arduino.h"
++#include "EEPROM.h"
++#include "commands.h"
++#include "manual_control.h"
++#include "control_settings.h"
++#include "teaching.h"
++#include "app_controller.h"
++#include <iostream>
++#include <fstream>
++#include <iomanip>
++#include <cstdlib>
++uint32_t simulatedTime=0;
++std::vector<ServoWrite> servoWrites;
++std::vector<int> attachedPins;
++std::vector<uint32_t> delayCalls;
++int analogValues[4]={506,519,515,519};
++SerialStub Serial;
++EEPROMStub EEPROM;
++void setup();
++void loop();
++#include "../../src/motion.cpp"
++namespace {
++int assertions=0;
++HardwareConfig measuredConfig;
++JointControl measuredJoints[4];
++void require(bool value,const char* expression,int line) {
++    ++assertions; if(!value) { std::cerr<<"FAIL "<<line<<": "<<expression<<'\n'; std::exit(1); }
++}
++#define CHECK(e) require((e),#e,__LINE__)
++Point3D fk(const Pose& p) { return solveFK3D(p.angles[0],p.angles[1],p.angles[2]); }
++void send(const std::string& text) { Serial.input+=text+'\n'; while(!Serial.input.empty()) pollSerial(); }
++void setCommand(const Pose& p) { CHECK(requestPose(p)); CHECK(applyPendingPose()); syncManualTarget(simulatedTime); }
++void reset() {
++    cancelMotion(); hardwareConfig=measuredConfig;
++    for(int i=0;i<4;++i) joints[i]=measuredJoints[i];
++    EEPROM.reset(); simulatedTime=0; resetControlSettings();
++    Serial.input.clear(); Serial.output.clear(); servoWrites.clear(); setup();
++    simulatedTime+=20; loop(); setCommand(hardwareConfig.home);
++    CHECK(beginTeach()); CHECK(captureTeachHeight(false));
++}
++Pose lowerPose(float shoulder) { Pose p=hardwareConfig.home; p.angles[Shoulder]=shoulder; return p; }
++const char* phase(uint16_t i,uint16_t stroke) {
++    if(i==1) return "HOME"; if(i==2) return "HOME_TO_TRAVEL_Z";
++    if(i==3) return "TRAVEL_TO_P1"; if(i==4) return "PEN_DOWN";
++    if(i<=4+stroke) return "STROKE"; if(i==5+stroke) return "PEN_UP";
++    return "RETURN_HOME";
++}
++void compareCaptures() {
++    reset(); setCommand(lowerPose(118)); send("TEACH DRAWZ");
++    float first=teachSettings().drawZ; CHECK(fabs(first-fk(commandedPose()).z)<0.0001f);
++    // Capture is commandedPose, even when goal differs and has been discarded.
++    CHECK(requestPose(lowerPose(117))); float old=teachSettings().drawZ;
++    CHECK(!captureTeachHeight(true)); CHECK(teachSettings().drawZ==old);
++    holdArm(); resumeArm(); setCommand(lowerPose(116)); send("TEACH DRAWZ");
++    float second=teachSettings().drawZ; CHECK(second<first); CHECK(drawSettingsValid());
++    Point3D xy=fk(hardwareConfig.home);
++    CHECK(startDrawLine({xy.x,xy.y},{xy.x,xy.y+6}));
++    Pose firstGoal=commandedPose(),secondGoal=commandedPose();
++    CHECK(drawGoal(4,secondGoal));
++    CHECK(fabs(fk(secondGoal).z-second)<0.05f);
++    // Observe both captured heights through the real sampler, not a duplicated IK.
++    cancelMotion(); resumeArm(); setCommand(lowerPose(118)); CHECK(captureTeachHeight(true));
++    CHECK(startDrawLine({xy.x,xy.y},{xy.x,xy.y+6})); CHECK(drawGoal(4,firstGoal));
++    CHECK(fabs(fk(firstGoal).z-first)<0.05f); CHECK(fk(secondGoal).z<fk(firstGoal).z);
++    Pose qa,qb; CHECK(prepareOutputPose(firstGoal,qa)); CHECK(prepareOutputPose(secondGoal,qb));
++    std::cout<<"CAPTURE A z="<<first<<" PEN_DOWN J="<<firstGoal.angles[1]<<','<<firstGoal.angles[2]<<" quantZ="<<fk(qa).z
++             <<"; B z="<<second<<" J="<<secondGoal.angles[1]<<','<<secondGoal.angles[2]<<" quantZ="<<fk(qb).z<<'\n';
++    CHECK(!captureTeachHeight(true)); CHECK(teachSettings().drawZ==first); // Busy preserves old height.
++    cancelMotion(); resumeArm(); setCommand(hardwareConfig.home); CHECK(captureTeachAlignment()); CHECK(beginMarking());
++    send("TEACH DRAWZ"); CHECK(lastControlError()==ControlError::Invalid); CHECK(teachSettings().drawZ==first);
++    std::cout<<"REJECT marking retained="<<teachSettings().drawZ<<" output="<<Serial.output.substr(Serial.output.size()-13)<<'\n';
++}
++void quantizationScan() {
++    reset(); Point3D center=fk(hardwareConfig.home);
++    bool hadPrevious=false; float previousFloat=0,previousQuant=0; int reversals=0,plateaus=0,valid=0;
++    float largest=0,previousInput=0; float witnessHigh=0,witnessLow=0,witnessQHigh=0,witnessQLow=0;
++    for(int i=0;i<=2500;++i) {
++        Point3D p=center; p.z=center.z+5-i*0.01f;
++        IKResult3D ik=solveIK3D(p); if(!ik.valid) { hadPrevious=false; continue; }
++        Pose pose=commandedPose(),q; pose.angles[0]=ik.j0; pose.angles[1]=ik.j1; pose.angles[2]=ik.j2;
++        if(!prepareOutputPose(pose,q)) { hadPrevious=false; continue; }
++        float f=fk(pose).z,quant=fk(q).z; CHECK(fabs(f-p.z)<0.05f); ++valid;
++        if(hadPrevious) {
++            CHECK(f<previousFloat+0.0001f);
++            if(fabs(quant-previousQuant)<0.00001f) ++plateaus;
++            if(quant>previousQuant+0.0001f) {
++                ++reversals; if(quant-previousQuant>largest) { largest=quant-previousQuant; witnessHigh=previousInput; witnessLow=p.z; witnessQHigh=previousQuant; witnessQLow=quant; }
++            }
++        }
++        hadPrevious=true; previousFloat=f; previousQuant=quant; previousInput=p.z;
++    }
++    CHECK(valid>1000); CHECK(reversals>0); CHECK(plateaus>0);
++    std::cout<<"Z_SCAN sameXY="<<center.x<<','<<center.y<<" valid="<<valid<<" plateaus="<<plateaus<<" reversals="<<reversals<<" max_up_step="<<largest
++             <<" witness target="<<witnessHigh<<" -> "<<witnessLow<<" quantFK="<<witnessQHigh<<" -> "<<witnessQLow<<'\n';
++}
++void loggedEvidenceAndRoundTrip() {
++    reset();
++    const Pose logged[]={{{80,92,63,90}},{{88,85,78,90}},{{88,85,78,85}},{{96,92,115,89}}};
++    for(const Pose& p:logged) { Point3D v=fk(p); std::cout<<"LOGGED_STATUS_FK J="<<p.angles[0]<<'/'<<p.angles[1]<<'/'<<p.angles[2]<<'/'<<p.angles[3]<<" XYZ="<<v.x<<'/'<<v.y<<'/'<<v.z<<" (capture time unknown)\n"; }
++    Point3D p=fk(hardwareConfig.home); IKResult3D ik=solveIK3D(p); CHECK(ik.valid);
++    Pose target=hardwareConfig.home,quant; target.angles[0]=ik.j0; target.angles[1]=ik.j1; target.angles[2]=ik.j2;
++    CHECK(prepareOutputPose(target,quant));
++    std::cout<<"IDENTITY homeJ="<<hardwareConfig.home.angles[0]<<'/'<<hardwareConfig.home.angles[1]<<'/'<<hardwareConfig.home.angles[2]
++             <<" IKJ="<<ik.j0<<'/'<<ik.j1<<'/'<<ik.j2<<" quantJ="<<quant.angles[0]<<'/'<<quant.angles[1]<<'/'<<quant.angles[2]<<" FKz="<<p.z<<" -> "<<fk(quant).z<<'\n';
++    float dx=169.62f-144.77f,dy=-6.63f-32.18f;
++    float length=sqrtf(dx*dx+dy*dy); uint16_t n=static_cast<uint16_t>(ceilf(length/.75f));
++    CHECK(.75f/(CONTROL_INTERVAL_MS*.001f)<MANUAL_CART_SLOW); CHECK(setDrawingFeed(40)); CHECK(setDrawingFeed(50));
++    std::cout<<"LOGGED_P1_P2 illustrativeOnly length="<<length<<" samples="<<n<<" nominal15="<<length/15<<" nominal25="<<length/25<<'\n';
++}
++void trace(float feed,uint32_t gap,bool fastAck) {
++    reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
++    CHECK(setDrawingFeed(feed)); Point3D a=fk(hardwareConfig.home); TeachPoint b{a.x,a.y+30};
++    CHECK(startDrawLine({a.x,a.y},b)); uint16_t stroke=strokeSteps(0);
++    int validations=0;
++    while(motionStatus().state==MotionState::Validating) { updateMotion(simulatedTime,false); CHECK(!hasPendingPose()); CHECK(++validations<20000); }
++    CHECK(motionStatus().state==MotionState::Running); CHECK(Serial.output.find("PATH VALID")!=std::string::npos);
++    CHECK(motionStatus().completedWaypoints==0);
++    std::cout<<"TRACE feed="<<feed<<" tickGap="<<gap<<" fastAck="<<fastAck<<" sampleStroke="<<stroke<<" validateCalls="<<validations<<" drawZ="<<teachSettings().drawZ<<" travelZ="<<teachSettings().travelZ<<'\n';
++    uint32_t start=simulatedTime,strokeStart=0,strokeEnd=0,sameFrames=0; Pose previousOutput=commandedPose();
++    for(int count=0;isMotionBusy() && count<100000;++count) {
++        uint16_t before=motionStatus().completedWaypoints;
++        simulatedTime+=gap; updateMotion(simulatedTime,true);
++        bool pending=hasPendingPose(); CHECK(applyPendingPose());
++        if(pending) {
++            Pose now=commandedPose(); bool same=true; for(int j=0;j<4;++j) if(now.angles[j]!=previousOutput.angles[j]) same=false;
++            if(same) ++sameFrames; previousOutput=now;
++        }
++        if(fastAck) updateMotion(simulatedTime,false);
++        uint16_t after=motionStatus().completedWaypoints;
++        if(before<4 && after>=4) strokeStart=simulatedTime;
++        if(before<4+stroke && after>=4+stroke) strokeEnd=simulatedTime;
++    }
++    CHECK(!isMotionBusy()); CHECK(Serial.output.find("DONE(cmd)")!=std::string::npos);
++    std::cout<<"TOTAL ms="<<simulatedTime-start<<" strokeMs="<<strokeEnd-strokeStart<<" repeatedOutputFrames="<<sameFrames<<'\n';
++}
++}
++int main() {
++    measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
++    std::cout<<std::fixed<<std::setprecision(5);
++    CHECK(std::string(phase(4,40))=="PEN_DOWN");
++    compareCaptures(); quantizationScan(); loggedEvidenceAndRoundTrip(); trace(15,20,true); trace(25,20,true); trace(25,20,false); trace(25,100,true); trace(15,100,true);
++    std::cout<<"PASS DRAW T3 diagnostic: "<<assertions<<" checks\n";
++}
+\ No newline at end of file
+diff --git a/test/draw_t3/run.ps1 b/test/draw_t3/run.ps1
+new file mode 100644
+index 0000000..bd6cf00
+--- /dev/null
++++ b/test/draw_t3/run.ps1
+@@ -0,0 +1,13 @@
++param([string] $Compiler='C:/msys64/ucrt64/bin/g++.exe',[string] $Suite='speed_tests.cpp')
++$ErrorActionPreference='Stop'
++$root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
++$build=Join-Path $root '.pio/draw-t3-audit'
++New-Item -ItemType Directory -Force -Path $build | Out-Null
++$env:PATH=(Split-Path $Compiler)+';'+$env:PATH
++$arguments=@('-std=c++11','-O2','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-DMEARM_NATIVE_TEST','-I',(Join-Path $root 'test/native'),'-I',(Join-Path $root 'include'),(Join-Path $PSScriptRoot $Suite))
++$arguments+=Get-ChildItem (Join-Path $root 'src') -Filter '*.cpp' | Where-Object Name -ne 'motion.cpp' | ForEach-Object FullName
++$exe=Join-Path $build 'draw-t3.exe'
++& $Compiler @arguments '-o' $exe
++if($LASTEXITCODE -ne 0) { throw 'DRAW T3 diagnostic compilation failed' }
++& $exe
++if($LASTEXITCODE -ne 0) { throw 'DRAW T3 diagnostic failed' }
+\ No newline at end of file
+diff --git a/test/draw_t3/speed_tests.cpp b/test/draw_t3/speed_tests.cpp
+new file mode 100644
+index 0000000..0384b6b
+--- /dev/null
++++ b/test/draw_t3/speed_tests.cpp
+@@ -0,0 +1,149 @@
++// Desktop diagnostic only: includes the unmodified executor to observe private
++// phase targets/durations. run.ps1 excludes motion.cpp from the other sources.
++#include "Arduino.h"
++#include "EEPROM.h"
++#include "commands.h"
++#include "manual_control.h"
++#include "control_settings.h"
++#include "teaching.h"
++#include "app_controller.h"
++#include <iostream>
++#include <fstream>
++#include <iomanip>
++#include <cstdlib>
++uint32_t simulatedTime=0;
++std::vector<ServoWrite> servoWrites;
++std::vector<int> attachedPins;
++std::vector<uint32_t> delayCalls;
++int analogValues[4]={506,519,515,519};
++SerialStub Serial;
++EEPROMStub EEPROM;
++void setup();
++void loop();
++#include "../../src/motion.cpp"
++namespace {
++int assertions=0;
++HardwareConfig measuredConfig;
++JointControl measuredJoints[4];
++void require(bool value,const char* expression,int line) {
++    ++assertions; if(!value) { std::cerr<<"FAIL "<<line<<": "<<expression<<'\n'; std::exit(1); }
++}
++#define CHECK(e) require((e),#e,__LINE__)
++Point3D fk(const Pose& p) { return solveFK3D(p.angles[0],p.angles[1],p.angles[2]); }
++void send(const std::string& text) { Serial.input+=text+'\n'; while(!Serial.input.empty()) pollSerial(); }
++void setCommand(const Pose& p) { CHECK(requestPose(p)); CHECK(applyPendingPose()); syncManualTarget(simulatedTime); }
++void reset() {
++    cancelMotion(); hardwareConfig=measuredConfig;
++    for(int i=0;i<4;++i) joints[i]=measuredJoints[i];
++    EEPROM.reset(); simulatedTime=0; resetControlSettings();
++    Serial.input.clear(); Serial.output.clear(); servoWrites.clear(); setup();
++    simulatedTime+=20; loop(); setCommand(hardwareConfig.home);
++    CHECK(beginTeach()); CHECK(captureTeachHeight(false));
++}
++Pose lowerPose(float shoulder) { Pose p=hardwareConfig.home; p.angles[Shoulder]=shoulder; return p; }
++
++struct RunResult { uint32_t total,stroke; uint16_t samples; uint32_t frames; };
++void prepareLine(float feed) {
++    reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
++    CHECK(setDrawingFeed(feed)); Point3D a=fk(hardwareConfig.home);
++    CHECK(startDrawLine({a.x,a.y},{a.x,a.y+30}));
++}
++void prepareFive(float feed,bool curve) {
++    reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
++    setCommand(lowerPose(118)); CHECK(captureTeachAlignment()); CHECK(beginMarking());
++    for(int i=0;i<5;++i) { Pose p=commandedPose(); p.angles[Base]=80+i*5; setCommand(p); CHECK(onButtonPressed(1)); }
++    CHECK(setDrawingFeed(feed)); CHECK(curve?startCurve():startPolyline());
++}
++void preflight() {
++    size_t before=servoWrites.size(); int calls=0;
++    while(motionStatus().state==MotionState::Validating) { updateMotion(simulatedTime,false); CHECK(++calls<100000); }
++    CHECK(motionStatus().state==MotionState::Running); CHECK(servoWrites.size()==before);
++}
++RunResult run(bool pause=false,uint32_t gap=20) {
++    preflight();
++    uint16_t count=motionStatus().totalWaypoints;
++    uint16_t penUp=count-hardwareConfig.homeViaCount-1;
++    uint32_t start=simulatedTime,strokeStart=0,strokeEnd=0,pausedMs=0,frames=0;
++    Pose prior=goalPose(); bool didPause=false,checkpoint=false;
++    for(int loops=0;isMotionBusy() && loops<100000;++loops) {
++        simulatedTime+=gap; uint32_t interval=gap;
++        uint16_t before=motionStatus().completedWaypoints;
++        updateMotion(simulatedTime,true);
++        if(hasPendingPose()) {
++            Pose goal=goalPose(); float movement=maxDifference(prior,goal);
++            CHECK(movement<=DEFAULT_MOVE_SPEED*min(interval,MANUAL_MAX_DT_MS)*.001f+.001f);
++            size_t writes=servoWrites.size(); CHECK(applyPendingPose());
++            CHECK(servoWrites.size()==writes+4); ++frames; prior=goal;
++        }
++        // Every mandatory checkpoint must reach the output, not just the cursor.
++        if(task.endpointQueued) { CHECK(maxDifference(goalPose(),task.segmentTarget)<.001f); checkpoint=true; }
++        updateMotion(simulatedTime,false);
++        uint16_t after=motionStatus().completedWaypoints;
++        if(before<4 && after>=4) strokeStart=simulatedTime;
++        if(before<penUp-1 && after>=penUp-1) strokeEnd=simulatedTime;
++        if(pause && !didPause && after>4 && after<penUp-1) {
++            CHECK(pauseMotion(simulatedTime)); size_t n=servoWrites.size();
++            simulatedTime+=5000; updateMotion(simulatedTime,true); CHECK(applyPendingPose());
++            CHECK(servoWrites.size()==n); CHECK(resumeMotion(simulatedTime));
++            pausedMs=5000; didPause=true;
++        }
++        CHECK(after>=before); CHECK(after-before<=16);
++    }
++    CHECK(!isMotionBusy()); CHECK(!isArmHeld()); CHECK(checkpoint);
++    CHECK(strokeEnd>strokeStart); if(pause) CHECK(didPause);
++    return {simulatedTime-start-pausedMs,strokeEnd-strokeStart-pausedMs,static_cast<uint16_t>(count-6),frames};
++}
++void speedAndTravel() {
++    RunResult r[4]; const float feeds[]={15,25,80,100};
++    for(int i=0;i<4;++i) {
++        prepareLine(feeds[i]); r[i]=run();
++        std::cout<<"LINE feed="<<feeds[i]<<" totalMs="<<r[i].total<<" strokeMs="<<r[i].stroke<<" effective="<<30000.f/r[i].stroke<<" frames="<<r[i].frames<<'\n';
++    }
++    CHECK(r[0].stroke<=2040); CHECK(r[1].stroke<=1240);
++    CHECK(r[2].stroke<600); CHECK(r[3].stroke<=r[2].stroke);
++    // Air travel and HOME duration no longer depend on paper feed.
++    uint32_t homes[2];
++    for(int i=0;i<2;++i) {
++        prepareLine(i?100:15); preflight(); simulatedTime+=20; updateMotion(simulatedTime,true);
++        homes[i]=task.duration; CHECK(applyPendingPose());
++    }
++    CHECK(homes[0]==homes[1]);
++    prepareLine(80); RunResult paused=run(true); CHECK(paused.stroke==r[2].stroke);
++    prepareLine(80); simulatedTime=UINT32_MAX-100; RunResult wrapped=run(); CHECK(wrapped.stroke==r[2].stroke);
++    reset(); send("FEED 50"); CHECK(drawingFeed()==50); send("FEED 100"); CHECK(drawingFeed()==100);
++    send("FEED 100.01"); CHECK(drawingFeed()==100);
++    send("STATUS"); CHECK(Serial.output.find("Z=")!=std::string::npos);
++}
++void verticesAndCurve() {
++    for(int curve=0;curve<2;++curve) {
++        prepareFive(80,curve); servoWrites.clear(); RunResult result=run(true);
++        std::cout<<(curve?"CURVE":"POLY")<<" feed=80 totalMs="<<result.total<<" strokeMs="<<result.stroke<<" samples="<<result.samples<<" frames="<<result.frames<<'\n';
++        for(int i=0;i<5;++i) {
++            TeachPoint p; CHECK(getTeachPoint(i,p)); float closest=10000;
++            for(size_t k=0;k+3<servoWrites.size();k+=4) {
++                Point3D q=solveFK3D(servoWrites[k].angle,servoWrites[k+1].angle,servoWrites[k+2].angle);
++                if(fabs(q.z-teachSettings().drawZ)<3) closest=min(closest,pointDistance({q.x,q.y},p));
++                CHECK(isSafePlanarPose(servoWrites[k+1].angle,servoWrites[k+2].angle));
++            }
++            CHECK(closest<3);
++        }
++    }
++    prepareFive(100,true); RunResult loaded=run(false,100);
++    std::cout<<"CURVE late-tick totalMs="<<loaded.total<<" strokeMs="<<loaded.stroke<<'\n';
++    prepareLine(100); preflight();
++    simulatedTime+=20; updateMotion(simulatedTime,true); CHECK(applyPendingPose()); updateMotion(simulatedTime,false);
++    CHECK(cancelAndReturnHome());
++    while(isMotionBusy()) { simulatedTime+=20; updateMotion(simulatedTime,true); CHECK(applyPendingPose()); updateMotion(simulatedTime,false); }
++    CHECK(!isArmHeld()); CHECK(commandedPose().angles[Gripper]==85);
++    // Runtime safety is rechecked even for intermediate samples crossed in one tick.
++    prepareLine(100); preflight(); joints[Shoulder].minAngle=124;
++    servoWrites.clear(); simulatedTime+=20; updateMotion(simulatedTime,true);
++    CHECK(!isMotionBusy() && isArmHeld() && servoWrites.empty());
++}
++}
++int main() {
++    measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
++    speedAndTravel(); verticesAndCurve();
++    std::cout<<"PASS DRAW speed: "<<assertions<<" checks\n";
++    return 0;
++}
+diff --git a/test/native/sprint_tests.cpp b/test/native/sprint_tests.cpp
+index b186aaa..fccc2c2 100644
+--- a/test/native/sprint_tests.cpp
++++ b/test/native/sprint_tests.cpp
+@@ -640,7 +640,7 @@ void testFrozenTaskSpeeds() {
+     }
+     CHECK(duration[0]==duration[1] && duration[2]<duration[1]);
+     fresh(); send("FEED 0"); CHECK(contains("INVALID") && drawingFeed()==25);
+-    send("FEED 40.01"); CHECK(contains("INVALID") && drawingFeed()==25);
++    send("FEED 100.01"); CHECK(contains("INVALID") && drawingFeed()==25);
+     send("FEED 12.5"); CHECK(drawingFeed()==12.5f);
+     send("STATUS"); CHECK(contains("feed=12.5") && contains("pickNext=A"));
+     // HOME keeps its fixed 60 deg/s timing under SPEED/H/L.

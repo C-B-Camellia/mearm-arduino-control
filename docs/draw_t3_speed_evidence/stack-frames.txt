@@ -1,0 +1,153 @@
+BASE (anonymous namespace)::execute(unsigned long): frame=68
+(anonymous namespace)::execute(unsigned long)>:
+    3bc0:	a4 e3       	ldi	r26, 0x34	; 52
+    3bc2:	b0 e0       	ldi	r27, 0x00	; 0
+    3bc4:	e6 ee       	ldi	r30, 0xE6	; 230
+    3bc6:	fd e1       	ldi	r31, 0x1D	; 29
+    3bc8:	0c 94 45 39 	jmp	0x728a	; 0x728a <__prologue_saves__+0x4>
+    3bcc:	e5 ee       	ldi	r30, 0xE5	; 229
+    3bce:	f4 e0       	ldi	r31, 0x04	; 4
+    3bd0:	20 91 4c 05 	lds	r18, 0x054C	; 0x80054c <(anonymous namespace)::task+0x67>
+
+BASE (anonymous namespace)::sampleGoal(unsigned int, Pose&): frame=85
+(anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]>:
+    35f8:	a5 e4       	ldi	r26, 0x45	; 69
+    35fa:	b0 e0       	ldi	r27, 0x00	; 0
+    35fc:	e2 e0       	ldi	r30, 0x02	; 2
+    35fe:	fb e1       	ldi	r31, 0x1B	; 27
+    3600:	0c 94 45 39 	jmp	0x728a	; 0x728a <__prologue_saves__+0x4>
+    3604:	35 ee       	ldi	r19, 0xE5	; 229
+    3606:	e3 2e       	mov	r14, r19
+    3608:	34 e0       	ldi	r19, 0x04	; 4
+
+BASE inverse3D(Point3D const&, IKResult3D&): frame=59
+inverse3D(Point3D const&, IKResult3D&)>:
+    322c:	a9 e2       	ldi	r26, 0x29	; 41
+    322e:	b0 e0       	ldi	r27, 0x00	; 0
+    3230:	ec e1       	ldi	r30, 0x1C	; 28
+    3232:	f9 e1       	ldi	r31, 0x19	; 25
+    3234:	0c 94 43 39 	jmp	0x7286	; 0x7286 <__prologue_saves__>
+    3238:	5c 01       	movw	r10, r24
+    323a:	1b 01       	movw	r2, r22
+    323c:	0e 94 81 09 	call	0x1302	; 0x1302 <cartesianCalibrationValid()>
+
+BASE solveFK3D(float, float, float): frame=58
+solveFK3D(float, float, float)>:
+    2ac4:	a8 e2       	ldi	r26, 0x28	; 40
+    2ac6:	b0 e0       	ldi	r27, 0x00	; 0
+    2ac8:	e8 e6       	ldi	r30, 0x68	; 104
+    2aca:	f5 e1       	ldi	r31, 0x15	; 21
+    2acc:	0c 94 43 39 	jmp	0x7286	; 0x7286 <__prologue_saves__>
+    2ad0:	1c 01       	movw	r2, r24
+    2ad2:	4a 01       	movw	r8, r20
+    2ad4:	5b 01       	movw	r10, r22
+
+BASE pollSerial(): frame=99
+pollSerial()>:
+    5438:	a1 e5       	ldi	r26, 0x51	; 81
+    543a:	b0 e0       	ldi	r27, 0x00	; 0
+    543c:	e2 e2       	ldi	r30, 0x22	; 34
+    543e:	fa e2       	ldi	r31, 0x2A	; 42
+    5440:	0c 94 43 39 	jmp	0x7286	; 0x7286 <__prologue_saves__>
+    5444:	10 e4       	ldi	r17, 0x40	; 64
+    5446:	8d e4       	ldi	r24, 0x4D	; 77
+    5448:	95 e0       	ldi	r25, 0x05	; 5
+
+BASE cancelAndReturnHome(): frame=37
+cancelAndReturnHome()>:
+    41b2:	ac e1       	ldi	r26, 0x1C	; 28
+    41b4:	b0 e0       	ldi	r27, 0x00	; 0
+    41b6:	ef ed       	ldi	r30, 0xDF	; 223
+    41b8:	f0 e2       	ldi	r31, 0x20	; 32
+    41ba:	0c 94 4c 39 	jmp	0x7298	; 0x7298 <__prologue_saves__+0x12>
+    41be:	0e 94 ef 06 	call	0xdde	; 0xdde <drawingTaskActive()>
+    41c2:	bb 24       	eor	r11, r11
+    41c4:	b3 94       	inc	r11
+
+BASE main: frame=48
+main>:
+    6696:	a0 e2       	ldi	r26, 0x20	; 32
+    6698:	b0 e0       	ldi	r27, 0x00	; 0
+    669a:	e0 e5       	ldi	r30, 0x50	; 80
+    669c:	f3 e3       	ldi	r31, 0x33	; 51
+    669e:	f5 c5       	rjmp	.+3050   	; 0x728a <__prologue_saves__+0x4>
+    66a0:	78 94       	sei
+    66a2:	84 b5       	in	r24, 0x24	; 36
+    66a4:	82 60       	ori	r24, 0x02	; 2
+
+FIX (anonymous namespace)::execute(unsigned long): frame=70
+(anonymous namespace)::execute(unsigned long)>:
+    3bd8:	a5 e3       	ldi	r26, 0x35	; 53
+    3bda:	b0 e0       	ldi	r27, 0x00	; 0
+    3bdc:	e2 ef       	ldi	r30, 0xF2	; 242
+    3bde:	fd e1       	ldi	r31, 0x1D	; 29
+    3be0:	0c 94 1d 3a 	jmp	0x743a	; 0x743a <__prologue_saves__+0x2>
+    3be4:	e5 ee       	ldi	r30, 0xE5	; 229
+    3be6:	f4 e0       	ldi	r31, 0x04	; 4
+    3be8:	20 91 4c 05 	lds	r18, 0x054C	; 0x80054c <(anonymous namespace)::task+0x67>
+
+FIX (anonymous namespace)::sampleGoal(unsigned int, Pose&): frame=85
+(anonymous namespace)::sampleGoal(unsigned int, Pose&) [clone .constprop.4]>:
+    35fa:	a5 e4       	ldi	r26, 0x45	; 69
+    35fc:	b0 e0       	ldi	r27, 0x00	; 0
+    35fe:	e3 e0       	ldi	r30, 0x03	; 3
+    3600:	fb e1       	ldi	r31, 0x1B	; 27
+    3602:	0c 94 1e 3a 	jmp	0x743c	; 0x743c <__prologue_saves__+0x4>
+    3606:	35 ee       	ldi	r19, 0xE5	; 229
+    3608:	e3 2e       	mov	r14, r19
+    360a:	34 e0       	ldi	r19, 0x04	; 4
+
+FIX inverse3D(Point3D const&, IKResult3D&): frame=59
+inverse3D(Point3D const&, IKResult3D&)>:
+    322e:	a9 e2       	ldi	r26, 0x29	; 41
+    3230:	b0 e0       	ldi	r27, 0x00	; 0
+    3232:	ed e1       	ldi	r30, 0x1D	; 29
+    3234:	f9 e1       	ldi	r31, 0x19	; 25
+    3236:	0c 94 1c 3a 	jmp	0x7438	; 0x7438 <__prologue_saves__>
+    323a:	5c 01       	movw	r10, r24
+    323c:	1b 01       	movw	r2, r22
+    323e:	0e 94 82 09 	call	0x1304	; 0x1304 <cartesianCalibrationValid()>
+
+FIX solveFK3D(float, float, float): frame=58
+solveFK3D(float, float, float)>:
+    2ac6:	a8 e2       	ldi	r26, 0x28	; 40
+    2ac8:	b0 e0       	ldi	r27, 0x00	; 0
+    2aca:	e9 e6       	ldi	r30, 0x69	; 105
+    2acc:	f5 e1       	ldi	r31, 0x15	; 21
+    2ace:	0c 94 1c 3a 	jmp	0x7438	; 0x7438 <__prologue_saves__>
+    2ad2:	1c 01       	movw	r2, r24
+    2ad4:	4a 01       	movw	r8, r20
+    2ad6:	5b 01       	movw	r10, r22
+
+FIX pollSerial(): frame=99
+pollSerial()>:
+    5552:	a1 e5       	ldi	r26, 0x51	; 81
+    5554:	b0 e0       	ldi	r27, 0x00	; 0
+    5556:	ef ea       	ldi	r30, 0xAF	; 175
+    5558:	fa e2       	ldi	r31, 0x2A	; 42
+    555a:	0c 94 1c 3a 	jmp	0x7438	; 0x7438 <__prologue_saves__>
+    555e:	10 e4       	ldi	r17, 0x40	; 64
+    5560:	8d e4       	ldi	r24, 0x4D	; 77
+    5562:	95 e0       	ldi	r25, 0x05	; 5
+
+FIX cancelAndReturnHome(): frame=37
+cancelAndReturnHome()>:
+    42cc:	ac e1       	ldi	r26, 0x1C	; 28
+    42ce:	b0 e0       	ldi	r27, 0x00	; 0
+    42d0:	ec e6       	ldi	r30, 0x6C	; 108
+    42d2:	f1 e2       	ldi	r31, 0x21	; 33
+    42d4:	0c 94 25 3a 	jmp	0x744a	; 0x744a <__prologue_saves__+0x12>
+    42d8:	0e 94 f0 06 	call	0xde0	; 0xde0 <drawingTaskActive()>
+    42dc:	bb 24       	eor	r11, r11
+    42de:	b3 94       	inc	r11
+
+FIX main: frame=48
+main>:
+    682c:	a0 e2       	ldi	r26, 0x20	; 32
+    682e:	b0 e0       	ldi	r27, 0x00	; 0
+    6830:	eb e1       	ldi	r30, 0x1B	; 27
+    6832:	f4 e3       	ldi	r31, 0x34	; 52
+    6834:	03 c6       	rjmp	.+3078   	; 0x743c <__prologue_saves__+0x4>
+    6836:	78 94       	sei
+    6838:	84 b5       	in	r24, 0x24	; 36
+    683a:	82 60       	ori	r24, 0x02	; 2
