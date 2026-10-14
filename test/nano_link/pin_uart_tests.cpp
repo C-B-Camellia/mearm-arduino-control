@@ -31,7 +31,12 @@ int main() {
     PINB=_BV(PB2)|1; PCINT0_vect(); CHECK(TIMSK2==0 && PCMSK0==0x84);
     for(unsigned i=0;i<256;++i) { receive(i); CHECK(readPinUart()==int(i)); CHECK(readPinUart()==-1); }
     receive(0xA5,false); CHECK(pinUartOverflow() && readPinUart()==-1 && !pinUartOverflow());
-    for(uint8_t i=0;i<15;++i) receive(i);
+    // A periodic HELLO immediately followed by PRESS is 16 bytes. The old
+    // 15-byte usable ring lost the stop event when a control/record tick ran.
+    for(uint8_t i=0;i<16;++i) receive(i);
+    CHECK(!pinUartOverflow());
+    for(uint8_t i=0;i<16;++i) CHECK(readPinUart()==i);
+    for(uint8_t i=0;i<31;++i) receive(i);
     receive(99); CHECK(pinUartOverflow()); CHECK(readPinUart()==-1); // Flush stale queue.
     receive(0x5A); CHECK(readPinUart()==0x5A && !pinUartOverflow());
     receive(1); initializePinUart(); CHECK(readPinUart()==-1);

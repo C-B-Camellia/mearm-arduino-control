@@ -92,6 +92,15 @@ int main() {
     simulatedTime+=10;
     for(uint8_t i=3;i<8;++i) feedButtonByte(invalid[i],simulatedTime++);
     CHECK(isRecording());
+    // Real Recording (not just ARMING): stop via a second physical-frame B2.
+    clearRecording(); initializeButtonLink();
+    feed(ButtonWire::Hello,50,0,0);feed(ButtonWire::Press,50,1,2);
+    simulatedTime+=3000;updateRecording(simulatedTime,commandedPose());
+    CHECK(recordingStatus().state==RecordState::Recording);
+    simulatedTime+=12000;updateRecording(simulatedTime,commandedPose());
+    enqueue(ButtonWire::Hello,50,1,0);enqueue(ButtonWire::Press,50,2,2);pollButtonLink();
+    CHECK(!isRecording() && hasRecording() && recordingStatus().duration==12000);
+    feed(ButtonWire::Press,50,2,2);CHECK(hasRecording() && !isRecording());
     CHECK(servoWrites.empty()); // Protocol tests never command an actual output.
     std::cout<<"PASS Nano protocol + real Uno PC loop: "<<checks<<" checks\n";
 }

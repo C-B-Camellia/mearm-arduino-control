@@ -7,7 +7,7 @@ static_assert(MEARM_BUTTON_BAUD==9600,"sampled UART supports 9600 baud only");
 // Timer0: millis; Timer1: Servo; Timer2: 9600-baud RX sampling only.
 // D10/PB2 is PCINT2 in the PCINT0 group, not the PCINT2 vector.
 namespace {
-volatile uint8_t bytes[16],head=0,tail=0,shift=0,bit=0;
+volatile uint8_t bytes[32],head=0,tail=0,shift=0,bit=0;
 volatile bool overflow=false;
 }
 ISR(PCINT0_vect) {
@@ -23,7 +23,7 @@ ISR(TIMER2_COMPA_vect) {
         ++bit; OCR2A=51; // Subsequent samples: 104 us.
     } else {
         if(PINB&_BV(PB2)) {
-            uint8_t next=(head+1)&15;
+            uint8_t next=(head+1)&31;
             if(next!=tail) { bytes[head]=shift; head=next; } else overflow=true;
         } else overflow=true; // Invalid stop bit; discard and require HELLO.
         TIMSK2&=~_BV(OCIE2A);
@@ -40,7 +40,7 @@ void initializePinUart() {
 }
 int readPinUart() {
     if(head==tail) return -1;
-    uint8_t value=bytes[tail]; tail=(tail+1)&15; return value;
+    uint8_t value=bytes[tail]; tail=(tail+1)&31; return value;
 }
 bool pinUartOverflow() {
     uint8_t saved=SREG; cli();
