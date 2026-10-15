@@ -134,7 +134,7 @@ void executeLine(char* line) {
     if(op==8 || op==9) { adjustManualSpeedScale(op==8); result(true); }
     else if(op==10 || op==11) {
         if(!gripperCalibrationValid()) result(rejectControl(ControlError::Uncalibrated));
-        else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:hardwareConfig.gripClosed; result(startJointMove(p)); }
+        else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:kPenGripAngle; result(startJointMove(p)); }
     }
     else if(op==12) { if(!pauseMotion(millis())) holdArm(); result(true); }
     else if(op==13) { if(isPickSaving()) { result(rejectControl(ControlError::Busy)); return; } if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }

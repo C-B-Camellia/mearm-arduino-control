@@ -1,5 +1,6 @@
 #pragma once
 #include <Arduino.h>
+constexpr float kPenGripAngle = 85.0f;
 float manualSpeedScale();
 bool setManualSpeedScale(float scale);
 void adjustManualSpeedScale(bool faster);

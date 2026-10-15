@@ -199,6 +199,9 @@ void test3DAndManual() {
     fresh(); send("O"); CHECK(contains("UNCALIBRATED") && servoWrites.empty());
     send("x90,y120,z95"); CHECK(contains("DISABLED") && servoWrites.empty());
     send("x90,y120,x95"); CHECK(contains("INVALID") && servoWrites.empty());
+    syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=40; hardwareConfig.gripClosed=90;
+    send("S"); finishTask(); CHECK(commandedPose().angles[Gripper]==85);
+    send("O"); finishTask(); CHECK(commandedPose().angles[Gripper]==40 && hardwareConfig.gripClosed==90);
 }
 void testIndependentSpeedAndClock() {
     fresh(); send("SPEED 30"); uint32_t start=simulatedTime; send("J1 100"); finishTask(); uint32_t slow=simulatedTime-start;
