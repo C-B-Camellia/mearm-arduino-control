@@ -59,7 +59,7 @@ void setup()
 #endif
 
     printNewline();
-    printLine(F("MeArm dev; HELP"));
+    printLine(F("MeArm"));
 }
 
 void loop()

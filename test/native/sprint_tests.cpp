@@ -126,9 +126,7 @@ void testParser() {
     Serial.input="IK 42."; loop(); Serial.input="7 51\r\n"; loop(); CHECK(contains("IK J1="));
     send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
     CHECK(contains("J=120 60") || contains("J=90 120 60 50"));
-    Serial.output.clear(); send("HELP");
-    for(const char* command:{"RUNLINE","IK3","JOINT/CART","O/S H/L","REC","BTN 1..4","TEACH","ORDER","DRAW","PICK"}) CHECK(contains(command));
-    CHECK(std::count(Serial.output.begin(),Serial.output.end(),'\n')==4); // Compact HELP; command behavior is tested separately.
+    Serial.output.clear(); send("HELP"); CHECK(contains("INVALID") && !isMotionBusy());
     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
         Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
     }
