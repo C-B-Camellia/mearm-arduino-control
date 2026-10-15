@@ -1,7 +1,7 @@
 #define FIELD_LIBRARY
 #include "field_tests.cpp"
 void measure(int kind,float feed,bool pause=false) {
- reset();heights();setCommand(hardwareConfig.home);CHECK(feed==kDrawSpeedMmS);
+ reset();heights();setCommand(hardwareConfig.home);CHECK(feed==(kind==0?kDrawSpeedMmS:kFivePointDrawSpeedMmS));
  TeachPoint a=fieldPoints[0],b=fieldPoints[1];float length=pointDistance(a,b);b={a.x+(b.x-a.x)*20/length,a.y+(b.y-a.y)*20/length};
  CHECK(kind==0?startDrawLine(a,b):kind==1?startPolyline():startCurve());preflight();
  uint16_t down=4,up=task.status.totalWaypoints-1;uint32_t start=simulatedTime,strokeStart=0,strokeEnd=0;
@@ -41,6 +41,6 @@ void measure(int kind,float feed,bool pause=false) {
  std::cout<<"METRIC kind="<<kind<<" feed="<<feed<<" total="<<simulatedTime-start<<" stroke="<<strokeEnd-strokeStart<<" first="<<firstEnd-strokeStart<<" writes="<<physical<<" maxIntDelta="<<maximumDelta<<" holds="<<holds<<'\n';
 }
 int main(){measuredConfig=hardwareConfig;for(int i=0;i<4;++i)measuredJoints[i]=joints[i];
- for(int kind=0;kind<3;++kind)measure(kind,kDrawSpeedMmS);
- measure(1,kDrawSpeedMmS,true);measure(2,kDrawSpeedMmS,true);
+ for(int kind=0;kind<3;++kind)measure(kind,kind==0?kDrawSpeedMmS:kFivePointDrawSpeedMmS);
+ measure(1,kFivePointDrawSpeedMmS,true);measure(2,kFivePointDrawSpeedMmS,true);
  std::cout<<"PASS field speed "<<assertions<<'\n';}

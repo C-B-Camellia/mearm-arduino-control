@@ -278,7 +278,10 @@ __attribute__((noinline)) void execute(uint32_t now) {
                 // The sampler already knows the Cartesian chord. Reconstructing
                 // both endpoints through FK adds six trigonometric evaluations
                 // per endpoint and introduces IK round-trip tolerance into timing.
-                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/(stroke?kDrawSpeedMmS:kPenTransitionSpeedMmS))));
+                const float paperSpeed=stroke
+                    ? ((task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve) ? kFivePointDrawSpeedMmS : kDrawSpeedMmS)
+                    : kPenTransitionSpeedMmS;
+                task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/paperSpeed)));
             }
         }
         task.elapsed+=dt; dt=0;

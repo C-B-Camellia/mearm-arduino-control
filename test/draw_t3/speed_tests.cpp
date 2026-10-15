@@ -52,7 +52,7 @@ void prepareFive(float feed,bool curve) {
     reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
     setCommand(lowerPose(118)); CHECK(captureTeachAlignment()); CHECK(beginMarking());
     for(int i=0;i<5;++i) { Pose p=commandedPose(); p.angles[Base]=80+i*5; setCommand(p); CHECK(onButtonPressed(1)); }
-    CHECK(feed==kDrawSpeedMmS); CHECK(curve?startCurve():startPolyline());
+    CHECK(feed==kFivePointDrawSpeedMmS); CHECK(curve?startCurve():startPolyline());
 }
 void preflight() {
     size_t before=servoWrites.size(); int calls=0;
@@ -112,8 +112,8 @@ void speedAndTravel() {
 }
 void verticesAndCurve() {
     for(int curve=0;curve<2;++curve) {
-        prepareFive(kDrawSpeedMmS,curve); servoWrites.clear(); RunResult result=run(true);
-        std::cout<<(curve?"CURVE":"POLY")<<" fixedSpeed="<<kDrawSpeedMmS<<" totalMs="<<result.total<<" strokeMs="<<result.stroke<<" samples="<<result.samples<<" frames="<<result.frames<<'\n';
+        prepareFive(kFivePointDrawSpeedMmS,curve); servoWrites.clear(); RunResult result=run(true);
+        std::cout<<(curve?"CURVE":"POLY")<<" fixedSpeed="<<kFivePointDrawSpeedMmS<<" totalMs="<<result.total<<" strokeMs="<<result.stroke<<" samples="<<result.samples<<" frames="<<result.frames<<'\n';
         for(int i=0;i<5;++i) {
             TeachPoint p; CHECK(getTeachPoint(i,p)); float closest=10000;
             for(size_t k=0;k+3<servoWrites.size();k+=4) {
@@ -124,7 +124,7 @@ void verticesAndCurve() {
             CHECK(closest<3);
         }
     }
-    prepareFive(kDrawSpeedMmS,true); RunResult loaded=run(false,100);
+    prepareFive(kFivePointDrawSpeedMmS,true); RunResult loaded=run(false,100);
     std::cout<<"CURVE late-tick totalMs="<<loaded.total<<" strokeMs="<<loaded.stroke<<'\n';
     prepareLine(kDrawSpeedMmS); preflight();
     simulatedTime+=20; updateMotion(simulatedTime,true); CHECK(applyPendingPose()); updateMotion(simulatedTime,false);

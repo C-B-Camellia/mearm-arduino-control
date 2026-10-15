@@ -50,7 +50,7 @@ static void trace(float feed) {
 }
 static void allPaths() {
     for(unsigned kind=0;kind<4;++kind) {
-        float feed=kDrawSpeedMmS;
+        float feed=kind>=2?kFivePointDrawSpeedMmS:kDrawSpeedMmS;
         if(kind>=2) prepareFive(feed,kind==3);
         else {
             reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true)); CHECK(feed==kDrawSpeedMmS);
