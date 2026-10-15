@@ -37,7 +37,7 @@ bool beginTeach() {
 }
 static bool captureHeight(float& z,bool& valid) {
     if(!mutableNow()) return false;
-    if(!active || marking) return rejectControl(ControlError::Invalid);
+    if(!active || marking) return rejectControl(ControlError::TeachState);
     Point3D p=currentPoint(); if(!isfinite(p.z)) return rejectControl(ControlError::Uncalibrated);
     z=p.z; valid=true;
     return true;
@@ -46,7 +46,8 @@ bool captureTeachHeight(bool drawing) { return drawing?captureHeight(settings.dr
 bool captureTeachAlignment() { return captureHeight(settings.teachZ,settings.teachValid); }
 bool beginMarking() {
     if(!mutableNow()) return false;
-    if(!active || !drawSettingsValid() || !settings.teachValid || !isfinite(settings.teachZ) || settings.teachZ<=settings.drawZ || settings.teachZ>settings.travelZ) return rejectControl(ControlError::Uncalibrated);
+    if(!active) return rejectControl(ControlError::TeachState);
+    if(!drawSettingsValid() || !settings.teachValid || !isfinite(settings.teachZ) || settings.teachZ<=settings.drawZ || settings.teachZ>settings.travelZ) return rejectControl(ControlError::TeachHeights);
     Point3D p=currentPoint();
     // Do not silently move vertically when entering marking. Capture travelZ at
     // this pose, then explicitly capture TEACHZ and enter centered.
@@ -55,7 +56,7 @@ bool beginMarking() {
 }
 bool markTeachPoint() {
     if(!mutableNow()) return false;
-    if(!markingActive()) return rejectControl(ControlError::Invalid);
+    if(!markingActive()) return rejectControl(ControlError::MarkState);
     if(count==TEACH_POINT_COUNT) return rejectControl(ControlError::Full);
     Point3D p=currentPoint(); if(!isfinite(p.x) || !isfinite(p.y)) return rejectControl(ControlError::Uncalibrated);
     for(uint8_t i=0;i<count;++i) {

@@ -124,11 +124,11 @@ void testParser() {
     for(const char* s:invalid) { Serial.output.clear(); send(s); CHECK(contains("ERR")); CHECK(servoWrites.empty()); }
     send("IK +42.7 51."); CHECK(contains("IK J1="));
     Serial.input="IK 42."; loop(); Serial.input="7 51\r\n"; loop(); CHECK(contains("IK J1="));
-    send(std::string(80,'A')); CHECK(contains("ERR command too long")); send("STATUS"); CHECK(contains("task="));
+    send(std::string(80,'A')); CHECK(contains("ERR E05")); send("STATUS"); CHECK(contains("task="));
     CHECK(contains("J=120 60") || contains("J=90 120 60 50"));
-    Serial.output.clear(); send("HELP"); CHECK(contains("INVALID") && !isMotionBusy());
+    Serial.output.clear(); send("HELP"); CHECK(contains("E05") && !isMotionBusy());
     for(const char* command:{"DRAW LINE 1 2 bad 4","DRAW SHAPE N 1 2 3 nan","XYZ 1 2 bad","J1 110x"}) {
-        Serial.output.clear(); send(command); CHECK(contains("INVALID") && servoWrites.empty() && !isMotionBusy());
+        Serial.output.clear(); send(command); CHECK(contains("E05") && servoWrites.empty() && !isMotionBusy());
     }
 }
 void testHoldAndJoystick() {
@@ -196,9 +196,9 @@ void test3DAndManual() {
     checkWritesSafe();
     fresh(); send("J1 110"); finishTask(); CHECK(joints[Shoulder].commandedAngle==110);
     CHECK(!isArmHeld()); checkWritesSafe();
-    fresh(); send("O"); CHECK(contains("UNCALIBRATED") && servoWrites.empty());
-    send("x90,y120,z95"); CHECK(contains("DISABLED") && servoWrites.empty());
-    send("x90,y120,x95"); CHECK(contains("INVALID") && servoWrites.empty());
+    fresh(); send("O"); CHECK(contains("E03") && servoWrites.empty());
+    send("x90,y120,z95"); CHECK(contains("E04") && servoWrites.empty());
+    send("x90,y120,x95"); CHECK(contains("E05") && servoWrites.empty());
     syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=40; hardwareConfig.gripClosed=90;
     send("S"); CHECK(contains("OK S\r\n")); finishTask(); CHECK(commandedPose().angles[Gripper]==85 && contains("DONE MOVE"));
     send("O"); finishTask(); CHECK(commandedPose().angles[Gripper]==40 && hardwareConfig.gripClosed==90);
@@ -220,9 +220,9 @@ void recordMovingSession(uint32_t duration) {
     analogValues[1]=519; send("REC STOP");
 }
 void testRecordingAndButtons() {
-    fresh(); send("PLAY"); CHECK(contains("NO_DATA"));
+    fresh(); send("PLAY"); CHECK(contains("E09"));
     send("BTN 2"); CHECK(recordingStatus().state==RecordState::Arming);
-    runFor(1000); CHECK(contains("REC ARMING 2")); send("BTN 3"); CHECK(contains("BUSY"));
+    runFor(1000); CHECK(contains("REC ARMING 2")); send("BTN 3"); CHECK(contains("E01"));
     send("BTN 2"); CHECK(!isRecording() && !hasRecording());
     fresh(); send("REC START"); runFor(3000); runFor(11000); send("REC STOP");
     CHECK(hasRecording() && recordingStatus().duration==11000); // Stationary/short takes are retained.
@@ -239,8 +239,8 @@ void testRecordingAndButtons() {
     fresh(); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
     CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
     CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('9',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(contains("INVALID")); CHECK(!buttonLinkConfigured());
-    send("BTN 4"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("UNCALIBRATED"));
+    CHECK(contains("E05")); CHECK(!buttonLinkConfigured());
+    send("BTN 4"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("E03"));
     fresh(); send("REC START"); runFor(3000); runFor(100); send("CANCEL");
     CHECK(!isRecording() && !hasRecording() && isArmHeld());
 }
@@ -346,13 +346,13 @@ void testAdaptiveRecording() {
     advance(1000); finishTask(); CHECK(!isArmHeld());
 }
 void testRecordingInputAndErrors() {
-    const char* names[]={"INVALID","BUSY","HELD","UNCALIBRATED","DISABLED","INVALID","UNSAFE","UNREACHABLE","FULL","NO_DATA","GEOMETRY"};
+    const char* names[]={"E05","E01","E02","E03","E04","E05","E06","E07","E08","E09","E10","T01","T02","T03","D01","P01","P02"};
     for(uint8_t i=0;i<sizeof(names)/sizeof(names[0]);++i) {
         Serial.output.clear(); rejectControl(static_cast<ControlError>(i)); printControlError();
         CHECK(Serial.output==std::string("ERR ")+names[i]+"\r\n");
     }
     Serial.output.clear(); rejectControl(static_cast<ControlError>(255)); printControlError();
-    CHECK(Serial.output=="ERR INVALID\r\n");
+    CHECK(Serial.output=="ERR E05\r\n");
     for(float bad:{std::numeric_limits<float>::quiet_NaN(),std::numeric_limits<float>::infinity(),-1.0f,181.0f}) {
         fresh(); CHECK(startRecording(simulatedTime));
         Pose p=commandedPose(); p.angles[Base]=bad;
@@ -366,8 +366,8 @@ void testRecordingInputAndErrors() {
     CHECK(!isRecording() && !hasRecording() && lastControlError()==ControlError::Unsafe);
 }
 void testHomeAndPick() {
-    fresh(); send("HOME"); CHECK(contains("UNCALIBRATED") && !isMotionBusy() && servoWrites.empty());
-    send("GO"); send("A"); CHECK(contains("UNCALIBRATED") && servoWrites.empty());
+    fresh(); send("HOME"); CHECK(contains("E03") && !isMotionBusy() && servoWrites.empty());
+    send("GO"); send("A"); CHECK(contains("P01") && servoWrites.empty());
     syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
     initializeArm(); advance(); CHECK(attachedPins.size()==6); servoWrites.clear();
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
@@ -438,8 +438,8 @@ void testMotionPayloadTransitions() {
     CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
 }
 void testRuntimePickPersistence() {
-    fresh(); send("PICK LOAD"); CHECK(contains("NO_DATA") && isArmHeld()); send("GO");
-    send("PICK SET A SRC"); CHECK(contains("UNCALIBRATED") && pickStageMask(0)==0);
+    fresh(); send("PICK LOAD"); CHECK(contains("E09") && isArmHeld()); send("GO");
+    send("PICK SET A SRC"); CHECK(contains("E03") && pickStageMask(0)==0);
     syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=80; hardwareConfig.gripClosed=30;
     initializeArm(); advance(); advance();
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
@@ -465,7 +465,7 @@ void testRuntimePickPersistence() {
     CHECK(!getPickStage(2,4,custom,dwell)); // Do not open/change grip during carry.
     send("PICK CLEAR C");
     for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
-        Serial.output.clear(); send(bad); CHECK(contains("INVALID"));
+        Serial.output.clear(); send(bad); CHECK(contains("E05"));
     }
     // Saving freezes manual/business events but continues the PC loop.
     servoWrites.clear(); send("PICK SAVE"); CHECK(isPickSaving() && isArmHeld());
@@ -560,7 +560,7 @@ void prepareTeachFive() {
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
-    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("UNCALIBRATED"));
+    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("T01"));
     send("TEACH TEACHZ"); send("BTN 3"); CHECK(markingActive());
     for(uint8_t i=0;i<5;++i) {
         p=commandedPose(); p.angles[Base]=80+5*i;
@@ -569,21 +569,21 @@ void prepareTeachFive() {
     servoWrites.clear(); Serial.output.clear();
 }
 void testTeachAndDraw() {
-    fresh(); send("TEACH START"); CHECK(contains("UNCALIBRATED"));
+    fresh(); send("TEACH START"); CHECK(contains("E03"));
     prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
     CHECK(teachPointCount()==4); TeachPoint undone;
     CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,hardwareConfig.home.angles[Elbow]);
     CHECK(fabs(undone.x-surviving.x)<0.001f);
     send("MARK"); CHECK(teachPointCount()==5 && getTeachPoint(4,undone));
     Point3D readded=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(undone.x-readded.x)<0.001f);
-    send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("BUSY"));
-    finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("NO_DATA"));
-    prepareTeachFive(); send("MARK"); CHECK(contains("FULL") && teachPointCount()==5);
-    send("ORDER 1 1 3 4 5"); CHECK(contains("INVALID"));
+    send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("E01"));
+    finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("E09"));
+    prepareTeachFive(); send("MARK"); CHECK(contains("E08") && teachPointCount()==5);
+    send("ORDER 1 1 3 4 5"); CHECK(contains("E05"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
     Point3D expected=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(ordered.x-expected.x)<0.001f);
     send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
-    send("MARK"); CHECK(contains("BUSY")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+    send("MARK"); CHECK(contains("E01")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());
     send("BTN 2"); finishTask(); CHECK(commandedPose().angles[Base]==hardwareConfig.home.angles[Base]);
     CHECK(commandedPose().angles[Shoulder]==hardwareConfig.home.angles[Shoulder]);
@@ -636,17 +636,17 @@ void testFrozenTaskSpeeds() {
     for(uint8_t variant=0;variant<3;++variant) {
         prepareTeachFive(); send(variant==0?"SPEED 5":"SPEED 90");
         if(variant) send("H");
-        send("FEED 20"); CHECK(contains("INVALID"));
+        send("FEED 20"); CHECK(contains("E05"));
         send("DRAW POLY");
         while(motionStatus().state==MotionState::Validating) advance();
         uint32_t start=simulatedTime;
-        send("FEED 30"); CHECK(contains("INVALID"));
+        send("FEED 30"); CHECK(contains("E05"));
         finishTask(); duration[variant]=simulatedTime-start;
     }
     CHECK(duration[0]==duration[1] && duration[1]==duration[2]);
     fresh();
     for(const char* cmd:{"FEED", "FEED 0", "FEED 35", "FEED 12.5", "FEED 100.01"}) {
-        Serial.output.clear(); send(cmd); CHECK(contains("INVALID") && !isMotionBusy() && servoWrites.empty());
+        Serial.output.clear(); send(cmd); CHECK(contains("E05") && !isMotionBusy() && servoWrites.empty());
     }
     Serial.output.clear(); send("HELP"); CHECK(!contains("FEED"));
     Serial.output.clear(); send("STATUS"); CHECK(!contains("feed=") && contains("pickNext=A"));
@@ -676,7 +676,7 @@ void testIntegrationContracts() {
         CHECK(motionStatus().state==MotionState::Running);
         runFor(200); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
         size_t heldWrites=servoWrites.size(); runFor(1200); CHECK(servoWrites.size()==heldWrites);
-        send("REC START"); send("A"); send("ORDER 1 2 3 4 5"); CHECK(contains("BUSY") && !isRecording());
+        send("REC START"); send("A"); send("ORDER 1 2 3 4 5"); CHECK(contains("E01") && !isRecording());
         send("BTN 2"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
         for(uint8_t i=0;i<5;++i) {
             TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x);

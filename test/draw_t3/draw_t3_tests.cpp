@@ -69,7 +69,7 @@ void compareCaptures() {
              <<"; B z="<<second<<" J="<<secondGoal.angles[1]<<','<<secondGoal.angles[2]<<" quantZ="<<fk(qb).z<<'\n';
     CHECK(!captureTeachHeight(true)); CHECK(teachSettings().drawZ==first); // Busy preserves old height.
     cancelMotion(); resumeArm(); setCommand(hardwareConfig.home); CHECK(captureTeachAlignment()); CHECK(beginMarking());
-    send("TEACH DRAWZ"); CHECK(lastControlError()==ControlError::Invalid); CHECK(teachSettings().drawZ==first);
+    send("TEACH DRAWZ"); CHECK(lastControlError()==ControlError::TeachState); CHECK(teachSettings().drawZ==first);
     std::cout<<"REJECT marking retained="<<teachSettings().drawZ<<" output="<<Serial.output.substr(Serial.output.size()-13)<<'\n';
 }
 void quantizationScan() {

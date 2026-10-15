@@ -107,7 +107,7 @@ void speedAndTravel() {
     CHECK(baseline.stroke>=30000.f/kDrawSpeedMmS);
     prepareLine(kDrawSpeedMmS); RunResult paused=run(true); CHECK(paused.stroke==baseline.stroke);
     prepareLine(kDrawSpeedMmS); simulatedTime=UINT32_MAX-100; RunResult wrapped=run(); CHECK(wrapped.stroke==baseline.stroke);
-    reset(); Serial.output.clear(); send("FEED 50"); CHECK(Serial.output.find("INVALID")!=std::string::npos);
+    reset(); Serial.output.clear(); send("FEED 50"); CHECK(Serial.output.find("E05")!=std::string::npos);
     send("STATUS"); CHECK(Serial.output.find("Z=")!=std::string::npos);
 }
 void verticesAndCurve() {

@@ -171,7 +171,7 @@ __attribute__((noinline)) void pollSerial() {
         if(discardLine) continue;
         if((c>=32 && c<=126) || c=='\t') {
             if(serialIndex<SERIAL_BUFFER_SIZE-1) serialBuffer[serialIndex++]=c;
-            else { discardLine=true; printLine(F("ERR command too long")); }
+            else { discardLine=true; invalid(); }
         } else { discardLine=true; invalid(); }
     }
 }

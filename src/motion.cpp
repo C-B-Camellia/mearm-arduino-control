@@ -145,7 +145,7 @@ bool sampleGoal(uint16_t index,Pose& pose) {
     if(task.status.kind==TaskKind::PickPlace) {
         uint8_t homeCount=hardwareConfig.homeViaCount+1;
         if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
-        uint16_t dwell; return getPickStage(task.objectIndex,index-homeCount-1,pose,dwell) || rejectControl(ControlError::Uncalibrated);
+        uint16_t dwell; return getPickStage(task.objectIndex,index-homeCount-1,pose,dwell) || rejectControl(ControlError::PickStage);
     }
     if(task.status.kind==TaskKind::Playback) {
         RecordedFrame frame; if(!getRecordedFrame(index-1,frame)) return rejectControl(ControlError::NoData);
@@ -376,6 +376,7 @@ bool startHome() {
     return begin(TaskKind::Home,hardwareConfig.homeViaCount+1);
 }
 bool startPickPlace(uint8_t object) {
+    if(pickStageMask(object)!=255) return rejectControl(ControlError::PickConfig);
     if(!pickCalibrationValid(object) || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     if(!begin(TaskKind::PickPlace,PICK_STAGE_COUNT+hardwareConfig.homeViaCount+1)) return false;
     task.objectIndex=object; return true;
@@ -407,8 +408,8 @@ bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoi
     if(!drawSettingsValid() || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     // The configured HOME/via route must keep the pencil clamped.
     float grip=joints[Gripper].commandedAngle;
-    if(hardwareConfig.home.angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
-    for(uint8_t i=0;i<hardwareConfig.homeViaCount;++i) if(hardwareConfig.homeVia[i].angles[Gripper]!=grip) return rejectControl(ControlError::Unsafe);
+    if(hardwareConfig.home.angles[Gripper]!=grip) return rejectControl(ControlError::DrawGrip);
+    for(uint8_t i=0;i<hardwareConfig.homeViaCount;++i) if(hardwareConfig.homeVia[i].angles[Gripper]!=grip) return rejectControl(ControlError::DrawGrip);
     if(!begin(kind,1)) return false;
     task.shape=shape; task.cart.start={a.x,a.y,0}; task.cart.end={b.x,b.y,0};
     uint32_t count=2*(hardwareConfig.homeViaCount+1)+4;
