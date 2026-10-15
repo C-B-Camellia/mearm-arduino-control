@@ -1,0 +1,7 @@
+record scenario=0 frames=61 error=0 bound=0
+record scenario=1 frames=80 error=0.92308 bound=1
+record scenario=2 frames=80 error=11.9911 bound=180
+record scenario=3 frames=80 error=16.1538 bound=180
+record scenario=4 frames=80 error=16.1538 bound=180
+record scenario=5 frames=80 error=19.95 bound=180
+PASS: 1375642 checks

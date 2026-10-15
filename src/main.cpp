@@ -58,8 +58,6 @@ void setup()
     perf.lastReportMs = millis();
 #endif
 
-    printNewline();
-    printLine(F("MeArm"));
 }
 
 void loop()

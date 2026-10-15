@@ -1,0 +1,5 @@
+PREP identical subsequent sequence kind=0 ticks=179
+PREP identical subsequent sequence kind=1 ticks=411
+PREP identical subsequent sequence kind=2 ticks=230
+PREP identical subsequent sequence kind=3 ticks=224
+PASS DRAW prepare 12865

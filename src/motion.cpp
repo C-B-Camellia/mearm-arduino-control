@@ -30,7 +30,7 @@ struct MotionTask {
     // PickPlace owns objectIndex; drawing owns the mandatory endpoint flag.
     union { uint8_t objectIndex; bool drawCheckpoint; };
     ShapeId shape;
-    bool recoveryLift;
+    bool recoveryLift; // HOME: recovery lift; DRAW: initial gripper preparation.
     bool segmentLoaded,endpointQueued;
 };
 MotionTask task{};
@@ -84,6 +84,10 @@ bool pointPose(const Point3D& point,Pose& pose) {
 bool drawGoal(uint16_t index,Pose& pose) {
     task.drawCheckpoint=true;
     task.segmentDistance=0;
+    if(task.recoveryLift) {
+        pose.angles[Gripper]=kPenGripAngle;
+        if(index--==1) return true;
+    }
     uint8_t homeCount=hardwareConfig.homeViaCount+1;
     if(index<=homeCount) { pose=index<homeCount?hardwareConfig.homeVia[index-1]:hardwareConfig.home; return true; }
     index-=homeCount;
@@ -177,7 +181,7 @@ void finish(bool failed=false) {
     else if(kind==TaskKind::TeachPosition) completeMarking();
     else {
         printText(F("DONE "));
-        printCommandName(commandNames("NONE\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW SHAPE\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
+        printCommandName(commandNames("\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW SHAPE\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
     }
     syncManualTarget(millis());
 }
@@ -204,8 +208,7 @@ __attribute__((noinline)) void validateOne() {
     ++task.validationSubstep;
     Pose p=interpolate(task.segmentStart,task.segmentTarget,static_cast<float>(task.validationSubstep)/task.validationSubsteps), out;
     if(!prepareOutputPose(p,out)) {
-        rejectControl(ControlError::Unsafe);
-        if(task.status.kind==TaskKind::LineExecution) printLine(F("RUNLINE ABORTED (preflight)"));
+        rejectControl(isDrawingKind(task.status.kind) && task.recoveryLift && task.status.validatedWaypoints==0 ? ControlError::DrawGrip : ControlError::Unsafe);
         finish(true); return;
     }
     if(task.validationSubstep==task.validationSubsteps) {
@@ -216,7 +219,7 @@ __attribute__((noinline)) void validateOne() {
             else {
                 task.status.state=MotionState::Running; task.segmentTarget=task.origin; task.lastUpdate=millis(); printLine(F("PATH VALID"));
                 if(task.status.kind==TaskKind::Playback && task.cart.start.x>1) {
-                    printText(F("PLAY timeScale=")); printDecimal(task.cart.start.x); printNewline();
+                    printText(F("PLAY x=")); printDecimal(task.cart.start.x); printNewline();
                 }
             }
         }
@@ -260,7 +263,7 @@ __attribute__((noinline)) void execute(uint32_t now) {
             if(!sampleGoal(index,task.segmentTarget)) { finish(true); return; }
             if(!drawing) task.elapsed=0;
             task.segmentLoaded=true;
-            uint16_t penDown=hardwareConfig.homeViaCount+4;
+            uint16_t penDown=hardwareConfig.homeViaCount+4+(drawing && task.recoveryLift);
             uint16_t penUp=task.status.totalWaypoints-hardwareConfig.homeViaCount-1;
             bool stroke=drawing && index>penDown && index<penUp;
             float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
@@ -359,7 +362,7 @@ void updateMotion(uint32_t now,bool controlDue) {
             task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);
 #ifdef MEARM_FIVE_FAST
         // Only the three interior POLY vertices hold; CURVE remains continuous.
-        if(task.status.kind==TaskKind::Polyline && task.status.completedWaypoints>hardwareConfig.homeViaCount+4 &&
+        if(task.status.kind==TaskKind::Polyline && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+4+task.recoveryLift) &&
            task.status.completedWaypoints<task.status.totalWaypoints-hardwareConfig.homeViaCount-2)
             task.dwellRemaining=MEARM_POLY_HOLD_MS;
 #endif
@@ -420,12 +423,13 @@ namespace {
 bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoint& b) {
     if(!drawSettingsValid() || !homeCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     // The configured HOME/via route must keep the pencil clamped.
-    float grip=joints[Gripper].commandedAngle;
+    float grip=kPenGripAngle;
     if(hardwareConfig.home.angles[Gripper]!=grip) return rejectControl(ControlError::DrawGrip);
     for(uint8_t i=0;i<hardwareConfig.homeViaCount;++i) if(hardwareConfig.homeVia[i].angles[Gripper]!=grip) return rejectControl(ControlError::DrawGrip);
     if(!begin(kind,1)) return false;
+    task.recoveryLift=task.origin.angles[Gripper]!=grip;
     task.shape=shape; task.cart.start={a.x,a.y,0}; task.cart.end={b.x,b.y,0};
-    uint32_t count=2*(hardwareConfig.homeViaCount+1)+4;
+    uint32_t count=2*(hardwareConfig.homeViaCount+1)+4+task.recoveryLift;
     for(uint8_t i=0;i<drawCount()-1;++i) {
         uint16_t n=strokeSteps(i);
         if(!n) { task.status.state=MotionState::Idle; return rejectControl(ControlError::Invalid); }

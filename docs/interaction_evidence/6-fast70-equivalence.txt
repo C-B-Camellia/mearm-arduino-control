@@ -1,0 +1,2 @@
+Baseline Fast70 archived evidence vs interaction patch: 730 output/knot/hold/metric/interrupt records identical.
+Native simulated 20 ms clock; not AVR execution time or physical feedback.

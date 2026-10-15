@@ -331,7 +331,7 @@ void testAdaptiveRecording() {
     for(int i=0;i<24;++i) { simulatedTime+=20; updateRecording(simulatedTime,commandedPose()); }
     CHECK(stopRecording(simulatedTime)); CHECK(startPlayback());
     for(int i=0;i<20000 && !contains("PLAY START");++i) advance();
-    CHECK(contains("PLAY timeScale=25.00")); began=simulatedTime;
+    CHECK(contains("PLAY x=25.00")); began=simulatedTime;
     finishTask(); CHECK(simulatedTime-began>=12500 && simulatedTime-began<=12540);
     CHECK(commandedPose().angles[Base]==150 && !isArmHeld());
     // B4 aborts both ARMING and recording through the same safe HOME owner.
@@ -557,6 +557,7 @@ void testCurveIndependentReference() {
 }
 void prepareTeachFive() {
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
+    Pose grip=commandedPose(); grip.angles[Gripper]=85; CHECK(requestPose(grip)); CHECK(applyPendingPose());
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
