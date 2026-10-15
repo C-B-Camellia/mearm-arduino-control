@@ -132,7 +132,7 @@ void trace(float feed,uint32_t gap,bool fastAck) {
         if(before<4 && after>=4) strokeStart=simulatedTime;
         if(before<4+stroke && after>=4+stroke) strokeEnd=simulatedTime;
     }
-    CHECK(!isMotionBusy()); CHECK(Serial.output.find("DONE(cmd)")!=std::string::npos);
+    CHECK(!isMotionBusy()); CHECK(Serial.output.find("DONE DRAW LINE")!=std::string::npos);
     std::cout<<"TOTAL ms="<<simulatedTime-start<<" strokeMs="<<strokeEnd-strokeStart<<" repeatedOutputFrames="<<sameFrames<<'\n';
 }
 }

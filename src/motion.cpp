@@ -1,4 +1,5 @@
 #include "motion.h"
+#include "command_text.h"
 #include "arm.h"
 #include "config.h"
 #include "control_settings.h"
@@ -174,9 +175,8 @@ void finish(bool failed=false) {
     task.segmentLoaded=false; task.endpointQueued=false;
     if(failed) { holdArm(); printControlError(); }
     else {
-        if(kind==TaskKind::LinePreview) printLine(F("LINE VALID"));
-        else if(kind==TaskKind::LineExecution) printLine(F("RUNLINE DONE"));
-        else printLine(F("DONE(cmd)"));
+        printText(F("DONE "));
+        printCommandName(commandNames("NONE\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW SHAPE\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
     }
     syncManualTarget(millis());
 }

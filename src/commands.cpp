@@ -45,7 +45,19 @@ namespace {
 char serialBuffer[SERIAL_BUFFER_SIZE];
 uint8_t serialIndex=0;
 bool discardLine=false;
-void result(bool success) { if(success) printLine(F("OK")); else printControlError(); }
+void result(bool success) {
+    if(!success) { printControlError(); return; }
+    printText(F("OK"));
+    // strtok splits in place; echo tokens directly, with no second input buffer.
+    bool gap=true;
+    for(uint8_t i=0;i<serialIndex;++i) {
+        char c=serialBuffer[i];
+        if(!c || c==' ' || c=='\t') { gap=true; continue; }
+        if(gap) printChar(' ');
+        gap=false; printChar(c);
+    }
+    printNewline();
+}
 void invalid() { rejectControl(ControlError::Invalid); printControlError(); }
 void printIK(const IKResult& ik) {
     if(!ik.valid) { rejectControl(ControlError::Unreachable); printControlError(); return; }

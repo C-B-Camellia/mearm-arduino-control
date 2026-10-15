@@ -107,11 +107,11 @@ void testMath() {
     CHECK(!solveIK(std::numeric_limits<float>::infinity(),0).valid);
 }
 void testLine() {
-    fresh(); send("LINE 71.6 42.5"); finishTask(); CHECK(contains("LINE VALID") && servoWrites.empty());
+    fresh(); send("LINE 71.6 42.5"); finishTask(); CHECK(contains("DONE LINE") && servoWrites.empty());
     Serial.output.clear(); send("RUNLINE 71.6 42.5");
     CHECK(isMotionBusy()); send("HOLD"); Pose stopped=commandedPose();
     runFor(1000); CHECK(commandedPose().angles[Shoulder]==stopped.angles[Shoulder]);
-    send("GO"); finishTask(); CHECK(contains("RUNLINE DONE")); checkWritesSafe();
+    send("GO"); finishTask(); CHECK(contains("DONE RUNLINE")); checkWritesSafe();
     FKResult end=solveFK(joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
     CHECK(std::fabs(end.position.x-71.6f)<3 && std::fabs(end.position.z-42.5f)<3);
     fresh(); send("RUNLINE 0 0"); finishTask(); CHECK(servoWrites.empty());
@@ -200,7 +200,7 @@ void test3DAndManual() {
     send("x90,y120,z95"); CHECK(contains("DISABLED") && servoWrites.empty());
     send("x90,y120,x95"); CHECK(contains("INVALID") && servoWrites.empty());
     syntheticCalibration(); hardwareConfig.gripValid=true; hardwareConfig.gripOpen=40; hardwareConfig.gripClosed=90;
-    send("S"); finishTask(); CHECK(commandedPose().angles[Gripper]==85);
+    send("S"); CHECK(contains("OK S\r\n")); finishTask(); CHECK(commandedPose().angles[Gripper]==85 && contains("DONE MOVE"));
     send("O"); finishTask(); CHECK(commandedPose().angles[Gripper]==40 && hardwareConfig.gripClosed==90);
 }
 void testIndependentSpeedAndClock() {

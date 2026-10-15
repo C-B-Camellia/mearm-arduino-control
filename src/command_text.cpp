@@ -12,3 +12,19 @@ int commandIndex(const char* text,const char* names) {
 #endif
     }
 }
+
+#include "serial_format.h"
+void printCommandName(const char* names,uint8_t index) {
+    while(index--) {
+#ifdef __AVR__
+        while(pgm_read_byte(names++)) {}
+#else
+        while(*names++) {}
+#endif
+    }
+#ifdef __AVR__
+    printLine(reinterpret_cast<const __FlashStringHelper*>(names));
+#else
+    Serial.println(names);
+#endif
+}
