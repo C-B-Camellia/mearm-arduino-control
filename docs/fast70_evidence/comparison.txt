@@ -1,0 +1,29 @@
+Original committed Fast35 matches override35: integer output, knots, holds and metrics.
+LINE/SHAPE: integer output streams with timestamps and all segment plans identical.
+Non-stroke: 24 identical segment plans; five-point integer output stage profiles identical.
+Five mandatory integer knot targets identical; POLY 3x80ms holds, CURVE no holds.
+fast35-output.log
+METRIC kind=0 total=2900 stroke=580 frames=111 maxDelta=2 strokeMaxDelta=1 holds=0 knots=0
+METRIC kind=1 total=8220 stroke=5420 frames=231 maxDelta=2 strokeMaxDelta=1 holds=0 knots=0
+METRIC kind=2 total=6620 stroke=4380 frames=192 maxDelta=2 strokeMaxDelta=1 holds=3 knots=31
+METRIC kind=3 total=6600 stroke=4360 frames=198 maxDelta=2 strokeMaxDelta=1 holds=0 knots=31
+INTERRUPT kind=2 cancel=0 PASS
+INTERRUPT kind=2 cancel=1 PASS
+INTERRUPT kind=3 cancel=0 PASS
+INTERRUPT kind=3 cancel=1 PASS
+PASS fast35/70 comparison 6558
+fast70-output.log
+METRIC kind=0 total=2900 stroke=580 frames=111 maxDelta=2 strokeMaxDelta=1 holds=0 knots=0
+METRIC kind=1 total=8220 stroke=5420 frames=231 maxDelta=2 strokeMaxDelta=1 holds=0 knots=0
+METRIC kind=2 total=4600 stroke=2360 frames=182 maxDelta=2 strokeMaxDelta=2 holds=3 knots=31
+METRIC kind=3 total=4480 stroke=2240 frames=185 maxDelta=2 strokeMaxDelta=2 holds=0 knots=31
+INTERRUPT kind=2 cancel=0 PASS
+INTERRUPT kind=2 cancel=1 PASS
+INTERRUPT kind=3 cancel=0 PASS
+INTERRUPT kind=3 cancel=1 PASS
+PASS fast35/70 comparison 5718
+plans35.log kind=2 all stroke segment ms sum=4116 nodes=31
+plans35.log kind=3 all stroke segment ms sum=4304 nodes=173
+plans70.log kind=2 all stroke segment ms sum=2067 nodes=31
+plans70.log kind=3 all stroke segment ms sum=2195 nodes=173
+Fast70 HEX SHA256 c594ddcc1d14e065b04cb1a6a155527b3573274585a37e9216590777ac3b4e61

@@ -1,4 +1,4 @@
-> Current Bringup (2026-10-14): runtime `FEED` has been retired. Drawing strokes use a fixed 35 mm/s target; use `uno_nano_five_fast` for the current D10 experiment. [TEACH axis evidence, current commands and build results](docs/TEACH_AXIS_FIXED35_2026-10-14.md).
+> Current Bringup (2026-10-15): runtime `FEED` is retired. LINE/SHAPE remain 35 mm/s; five-point POLY/CURVE strokes use 70 mm/s. Use `uno_nano_five_fast`. [Fast35/70 evidence, HEX hash and bringup steps](docs/Fast70_2026-10-15.md).
 
 # MeArm assessment firmware candidate
 
