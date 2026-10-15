@@ -17,14 +17,16 @@ enum class TaskKind : uint8_t {
     DrawLine,
     DrawShape,
     Polyline,
-    Curve
+    Curve,
+    TeachPosition
 };
 
 enum class MotionState : uint8_t {
     Idle,
     Validating,
     Running,
-    Paused
+    Paused,
+    Waiting
 };
 
 struct MotionStatus {
@@ -39,7 +41,8 @@ bool isMotionBusy();
 MotionStatus motionStatus();
 bool startLine(Point2D target, TaskKind kind);
 bool startJointMove(const Pose& target);
-bool startCartesianMove(const Point3D& target);
+bool startCartesianMove(const Point3D& target,TaskKind kind=TaskKind::CartesianMove);
+bool startTeachPosition();
 bool startHome();
 bool startPickPlace(uint8_t object);
 bool startPlayback();

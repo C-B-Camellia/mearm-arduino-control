@@ -1,4 +1,5 @@
 #include "teaching.h"
+#include "serial_format.h"
 #include "arm.h"
 #include "hardware_config.h"
 #include "manual_control.h"
@@ -48,12 +49,11 @@ bool beginMarking() {
     if(!mutableNow()) return false;
     if(!active) return rejectControl(ControlError::TeachState);
     if(!drawSettingsValid() || !settings.teachValid || !isfinite(settings.teachZ) || settings.teachZ<=settings.drawZ || settings.teachZ>settings.travelZ) return rejectControl(ControlError::TeachHeights);
-    Point3D p=currentPoint();
-    // Do not silently move vertically when entering marking. Capture travelZ at
-    // this pose, then explicitly capture TEACHZ and enter centered.
-    if(fabsf(p.z-settings.teachZ)>0.05f || !joysticksCentered(readJoysticks())) return rejectControl(ControlError::Invalid);
-    marking=true; syncManualTarget(millis()); return true;
+    if(!startTeachPosition()) return false;
+    marking=false; printLine(F("TEACH WAIT")); return true;
 }
+void completeMarking() { marking=true; printLine(F("TEACH READY")); }
+
 bool markTeachPoint() {
     if(!mutableNow()) return false;
     if(!markingActive()) return rejectControl(ControlError::MarkState);
@@ -79,6 +79,7 @@ bool undoTeachPoint() {
     return true;
 }
 bool exitTeach() {
+    if(isMotionBusy() && motionStatus().kind==TaskKind::TeachPosition) cancelMotion();
     if(!mutableNow()) return false;
     active=marking=false; syncManualTarget(millis()); return true;
 }

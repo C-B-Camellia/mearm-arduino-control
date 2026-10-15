@@ -15,6 +15,7 @@ bool beginTeach();
 bool captureTeachHeight(bool drawing);
 bool captureTeachAlignment();
 bool beginMarking();
+void completeMarking();
 bool markTeachPoint();
 bool clearTeachPoints();
 bool undoTeachPoint();

@@ -561,7 +561,7 @@ void prepareTeachFive() {
     send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
     send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("T01"));
-    send("TEACH TEACHZ"); send("BTN 3"); CHECK(markingActive());
+    send("TEACH TEACHZ"); send("BTN 3"); CHECK(!markingActive()); finishTask(); CHECK(markingActive());
     for(uint8_t i=0;i<5;++i) {
         p=commandedPose(); p.angles[Base]=80+5*i;
         CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
@@ -572,16 +572,16 @@ void testTeachAndDraw() {
     fresh(); send("TEACH START"); CHECK(contains("E03"));
     prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
     CHECK(teachPointCount()==4); TeachPoint undone;
-    CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,123,hardwareConfig.home.angles[Elbow]);
+    CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
     CHECK(fabs(undone.x-surviving.x)<0.001f);
     send("MARK"); CHECK(teachPointCount()==5 && getTeachPoint(4,undone));
-    Point3D readded=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(undone.x-readded.x)<0.001f);
+    Point3D readded=solveFK3D(100,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle); CHECK(fabs(undone.x-readded.x)<0.001f);
     send("DRAW POLY"); send("UNDO"); CHECK(teachPointCount()==5 && contains("E01"));
     finishTask(); send("CLEAR"); send("UNDO"); CHECK(teachPointCount()==0 && contains("E09"));
     prepareTeachFive(); send("MARK"); CHECK(contains("E08") && teachPointCount()==5);
     send("ORDER 1 1 3 4 5"); CHECK(contains("E05"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
-    Point3D expected=solveFK3D(100,123,hardwareConfig.home.angles[Elbow]); CHECK(fabs(ordered.x-expected.x)<0.001f);
+    Point3D expected=solveFK3D(100,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle); CHECK(fabs(ordered.x-expected.x)<0.001f);
     send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
     send("MARK"); CHECK(contains("E01")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());

@@ -174,6 +174,7 @@ void finish(bool failed=false) {
     task.status.state=MotionState::Idle;
     task.segmentLoaded=false; task.endpointQueued=false;
     if(failed) { holdArm(); printControlError(); }
+    else if(kind==TaskKind::TeachPosition) completeMarking();
     else {
         printText(F("DONE "));
         printCommandName(commandNames("NONE\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW SHAPE\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
@@ -316,16 +317,28 @@ bool startLine(Point2D target,TaskKind kind) {
     if(!begin(kind,max(1,static_cast<int>(n)))) return false;
     task.cart.start={start.x,0,start.z}; task.cart.end={target.x,0,target.z}; return true;
 }
-bool startCartesianMove(const Point3D& target) {
+bool startCartesianMove(const Point3D& target,TaskKind kind) {
     if(!cartesianCalibrationValid()) return rejectControl(ControlError::Uncalibrated);
     Point3D start=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
     float dx=target.x-start.x,dy=target.y-start.y,dz=target.z-start.z;
     float n=ceilf(sqrtf(dx*dx+dy*dy+dz*dz)/2.0f);
     if(!isfinite(n) || n>32767) return rejectControl(ControlError::Invalid);
-    if(!begin(TaskKind::CartesianMove,max(1,static_cast<int>(n)))) return false;
+    if(!begin(kind,max(1,static_cast<int>(n)))) return false;
     task.cart.start=start; task.cart.end=target; return true;
 }
+bool startTeachPosition() {
+    if(!begin(TaskKind::TeachPosition,1)) return false;
+    task.status.state=MotionState::Waiting; return true;
+}
 void updateMotion(uint32_t now,bool controlDue) {
+    if(task.status.state==MotionState::Waiting) {
+        if(!controlDue || !joysticksCentered(readJoysticks())) return;
+        Point3D p=solveFK3D(joints[Base].commandedAngle,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
+        p.z=teachSettings().teachZ;
+        task.status.state=MotionState::Idle;
+        if(!startCartesianMove(p,TaskKind::TeachPosition)) { finish(true); return; }
+        printLine(F("TEACH MOVING")); return;
+    }
     if(task.status.state==MotionState::Validating) { validateOne(); return; }
     if(task.status.state!=MotionState::Running) return;
     if(task.dwellRemaining) {

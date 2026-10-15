@@ -70,6 +70,7 @@ bool onButtonPressed(uint8_t button) {
         if(button==3) return cancelAndReturnHome();
         return true;
     }
+    if(button==4 && isMotionBusy() && motionStatus().kind==TaskKind::TeachPosition) return exitTeach();
     if(isRecording() && button!=2 && button!=4) return rejectControl(ControlError::Busy);
     if(isMotionBusy() && button!=4) return rejectControl(ControlError::Busy);
     if(teachingActive()) {

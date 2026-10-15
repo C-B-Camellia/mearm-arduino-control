@@ -68,7 +68,7 @@ void compareCaptures() {
     std::cout<<"CAPTURE A z="<<first<<" PEN_DOWN J="<<firstGoal.angles[1]<<','<<firstGoal.angles[2]<<" quantZ="<<fk(qa).z
              <<"; B z="<<second<<" J="<<secondGoal.angles[1]<<','<<secondGoal.angles[2]<<" quantZ="<<fk(qb).z<<'\n';
     CHECK(!captureTeachHeight(true)); CHECK(teachSettings().drawZ==first); // Busy preserves old height.
-    cancelMotion(); resumeArm(); setCommand(hardwareConfig.home); CHECK(captureTeachAlignment()); CHECK(beginMarking());
+    cancelMotion(); resumeArm(); setCommand(hardwareConfig.home); CHECK(captureTeachAlignment()); CHECK(beginMarking()); while(isMotionBusy()){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);} CHECK(markingActive());
     send("TEACH DRAWZ"); CHECK(lastControlError()==ControlError::TeachState); CHECK(teachSettings().drawZ==first);
     std::cout<<"REJECT marking retained="<<teachSettings().drawZ<<" output="<<Serial.output.substr(Serial.output.size()-13)<<'\n';
 }

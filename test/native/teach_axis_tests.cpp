@@ -60,12 +60,12 @@ int main(){setup();
  reset(p);CHECK(beginTeach());tick();CHECK(captureTeachHeight(true));float z0=teachSettings().drawZ;
  analogValues[3]=619;for(int i=0;i<10;++i)tick();center();CHECK(captureTeachAlignment());float z1=teachSettings().teachZ;Pose teachPose=commandedPose();
  analogValues[3]=619;for(int i=0;i<10;++i)tick();center();CHECK(captureTeachHeight(false));float z2=teachSettings().travelZ;
- CHECK(z0<z1&&z1<z2);command(teachPose);CHECK(teachSettings().teachZ==z1);CHECK(beginMarking());
+ CHECK(z0<z1&&z1<z2);command(teachPose);CHECK(teachSettings().teachZ==z1);CHECK(beginMarking());finish();CHECK(markingActive());
  std::cout<<"HEIGHTS "<<z0<<' '<<z1<<' '<<z2<<" MARKING accepted\n";
  reset(p);CHECK(beginTeach());CHECK(captureTeachHeight(true));CHECK(captureTeachAlignment());CHECK(captureTeachHeight(false));CHECK(!beginMarking());CHECK(lastControlError()==ControlError::TeachHeights);
  // Pending/motion ownership must reject height capture rather than reuse a new goal.
  reset(p);CHECK(beginTeach());CHECK(captureTeachHeight(true));float saved=teachSettings().drawZ;Pose next=p;next.angles[1]+=1;CHECK(requestPose(next));CHECK(!captureTeachHeight(true));CHECK(teachSettings().drawZ==saved);CHECK(applyPendingPose());
  CHECK(startJointMove(p));CHECK(!captureTeachHeight(true));finish();
  send("STATUS");CHECK(Serial.output.find("Z=")!=std::string::npos);
- std::cout<<"PASS TEACH ADC/XYZ/capture "<<assertions<<'\n';
+ std::cout<<"PASS TEACH ADC/XYZ/capture "<<assertions<<'\n';return 0;
 }
