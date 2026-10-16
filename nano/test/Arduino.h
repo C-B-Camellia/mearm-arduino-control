@@ -3,11 +3,12 @@
 #include <stddef.h>
 #include <string>
 #include <vector>
-constexpr int LOW=0,HIGH=1,INPUT_PULLUP=2;
+constexpr int LOW=0,HIGH=1,INPUT=0,INPUT_PULLUP=2;
+constexpr int A0=14,A1=15,A2=16,A3=17;
 class __FlashStringHelper;
 #define F(s) reinterpret_cast<const __FlashStringHelper*>(s)
 extern uint32_t mockTime;
-extern int levels[16],modes[16];
+extern int levels[20],modes[20];
 inline uint32_t millis() { return mockTime; }
 inline int digitalRead(int pin) { return levels[pin]; }
 inline void pinMode(int pin,int mode) { modes[pin]=mode; }

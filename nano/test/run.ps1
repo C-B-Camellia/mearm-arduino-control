@@ -11,6 +11,6 @@ foreach($oled in @($false,$true)) {
     $argsList+=@((Join-Path $PSScriptRoot 'nano_tests.cpp'),'-o',$binary)
     & $Compiler @argsList
     if($LASTEXITCODE -ne 0) { throw 'Nano test compilation failed' }
-    & $binary
+    & $binary (Join-Path $build ('panel-wire-'+$oled+'.bin'))
     if($LASTEXITCODE -ne 0) { throw 'Nano firmware tests failed' }
 }

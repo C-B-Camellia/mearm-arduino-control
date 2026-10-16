@@ -1,5 +1,10 @@
 # MeArm assessment firmware candidate
 
+## Current two-board submission (2026-10-17)
+
+The final Uno firmware is in the [`codex/interaction-patch-2026-10-15` branch](https://github.com/C-B-Camellia/mearm-arduino-control/tree/codex/interaction-patch-2026-10-15). The matching ATmega328P panel firmware and OLED source are in [`nano/` on this development branch](https://github.com/C-B-Camellia/mearm-arduino-control/tree/codex/emergency-fallback-2026-10-13/nano). See [the panel operation notes](nano/README.md) and [H4 local page switching details](docs/H4_Local_Only_2026-10-16.md).
+
+
 PlatformIO / classic Arduino Uno / ATmega328P / Servo. This candidate implements
 manual JOINT/CART, calibrated 3D FK/IK, serial moves, bounded recording/playback,
 HOME, A/B/C programs, shared button events, five-point teaching and drawing.
