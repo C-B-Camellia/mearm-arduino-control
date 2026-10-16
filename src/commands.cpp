@@ -98,7 +98,7 @@ void executeLine(char* line) {
     if(executeAppCommand(tokens,count,appSuccess)) { result(appSuccess); return; }
     float v[3]={}; bool numbers=count>=2 && count<=4 && parseNumbers(tokens+1,count-1,v);
     const char* c=tokens[0];
-    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0HOLD\0GO\0CANCEL\0STATUS\0"));
+    int op=commandIndex(c,commandNames("IK\0XY\0LINE\0RUNLINE\0XYZ\0IK3\0MODE\0SPEED\0H\0L\0O\0S\0STATUS\0"));
     if(count==3 && numbers && (op==0 || op==1 || op==2 || op==3)) {
         if(op==0) printIK(solveIK(v[0],v[1]));
         else if(op==1) {
@@ -142,14 +142,7 @@ void executeLine(char* line) {
         if(!gripperCalibrationValid()) result(rejectControl(ControlError::Uncalibrated));
         else { Pose p=commandedPose(); p.angles[Gripper]=op==10?hardwareConfig.gripOpen:kPenGripAngle; result(startJointMove(p)); }
     }
-    else if(op==12) { if(!pauseMotion(millis())) holdArm(); result(true); }
-    else if(op==13) { if(isPickSaving()) { result(rejectControl(ControlError::Busy)); return; } if(!resumeMotion(millis())) { resumeArm(); syncManualTarget(millis()); } result(true); }
-    else if(op==14) {
-        if(isRecording()) clearRecording();
-        if(drawingTaskActive()) result(cancelAndReturnHome());
-        else { cancelMotion(); result(true); }
-    }
-    else if(op==15) printStatus();
+    else if(op==12) printStatus();
     else invalid();
 }
 }

@@ -8,8 +8,8 @@ namespace {
 // Original calibration: lengths in mm, angles in degrees.
 constexpr float L1 = 80.0f;
 constexpr float L2 = 80.0f;
-constexpr float RIGHT_ZERO = 184.0f;
-constexpr float ELBOW_OFFSET = 116.9f;
+constexpr float RIGHT_ZERO = 194.0f;
+constexpr float ELBOW_OFFSET = 117.0f;
 }
 
 FKResult solveFK(float shoulderAngle, float elbowAngle)

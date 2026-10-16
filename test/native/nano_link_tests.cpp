@@ -36,50 +36,50 @@ bool pinUartOverflow() { bool e=rxError; rxError=false; if(e) rx.clear(); return
 int main() {
     setup(); simulatedTime+=20; loop(); servoWrites.clear();
     CHECK(buttonLinkConfigured() && Serial.baud==115200);
-    feed(ButtonWire::Press,42,1,2); CHECK(!isRecording()); // No HELLO, no action.
+    feed(ButtonWire::Command,42,1,2); CHECK(!isRecording()); // No HELLO, no action.
     feed(ButtonWire::Hello,42,0,0); CHECK(!isRecording());
-    feed(ButtonWire::Press,42,1,2); CHECK(recordingStatus().state==RecordState::Arming);
-    simulatedTime+=100; feed(ButtonWire::Press,42,1,2); CHECK(isRecording()); // Duplicate.
-    uint8_t invalid[8]; packet(ButtonWire::Press,42,2,2,invalid); invalid[6]^=1;
+    feed(ButtonWire::Command,42,1,2); CHECK(recordingStatus().state==RecordState::Arming);
+    simulatedTime+=100; feed(ButtonWire::Command,42,1,2); CHECK(isRecording()); // Duplicate.
+    uint8_t invalid[8]; packet(ButtonWire::Command,42,2,2,invalid); invalid[6]^=1;
     for(uint8_t byte:invalid) feedButtonByte(byte,simulatedTime++);
-    feed(ButtonWire::Press,42,2,2); CHECK(isRecording()); // CRC error requires HELLO.
-    feed(ButtonWire::Hello,42,2,0); feed(ButtonWire::Press,42,3,2); CHECK(!isRecording());
-    feed(ButtonWire::Press,43,4,2); CHECK(!isRecording()); // Wrong boot epoch.
-    feed(ButtonWire::Press,42,4,2); CHECK(isRecording());
-    feed(ButtonWire::Press,42,6,2); CHECK(isRecording()); // Gap disarms.
-    feed(ButtonWire::Hello,43,0,0); feed(ButtonWire::Press,42,7,2); CHECK(isRecording());
-    feed(ButtonWire::Press,43,1,2); CHECK(!isRecording());
+    feed(ButtonWire::Command,42,2,2); CHECK(isRecording()); // CRC error requires HELLO.
+    feed(ButtonWire::Hello,42,2,0); feed(ButtonWire::Command,42,3,2); CHECK(!isRecording());
+    feed(ButtonWire::Command,43,4,2); CHECK(!isRecording()); // Wrong boot epoch.
+    feed(ButtonWire::Command,42,4,2); CHECK(isRecording());
+    feed(ButtonWire::Command,42,6,2); CHECK(isRecording()); // Gap disarms.
+    feed(ButtonWire::Hello,43,0,0); feed(ButtonWire::Command,42,7,2); CHECK(isRecording());
+    feed(ButtonWire::Command,43,1,2); CHECK(!isRecording());
     // Invalid key/header/end/type and valid CRC must still fail safely.
     for(uint8_t kind=0;kind<5;++kind) {
         feed(ButtonWire::Hello,43,1,0);
-        packet(ButtonWire::Press,43,2,kind==0?0:kind==1?5:2,invalid);
+        packet(ButtonWire::Command,43,2,kind==0?0:kind==1?21:2,invalid);
         if(kind==2) invalid[0]=0;
         if(kind==3) invalid[7]=0;
         if(kind==4) invalid[1]=9;
         invalid[6]=ButtonWire::crc(invalid);
         for(uint8_t byte:invalid) feedButtonByte(byte,simulatedTime++);
         CHECK(!isRecording()); // Malformed bytes themselves never invoke a key.
-        feed(ButtonWire::Press,43,2,2);
+        feed(ButtonWire::Command,43,2,2);
         CHECK(kind==2?isRecording():!isRecording()); // Header noise is skipped; complete bad frames disarm.
         clearRecording(); initializeButtonLink();
     }
-    feed(ButtonWire::Hello,43,255,0); feed(ButtonWire::Press,43,0,2); CHECK(isRecording());
+    feed(ButtonWire::Hello,43,255,0); feed(ButtonWire::Command,43,0,2); CHECK(isRecording());
     feed(ButtonWire::Hello,44,10,0); // Reboot HELLO itself does not cancel/start.
-    CHECK(isRecording()); feed(ButtonWire::Press,44,11,2); CHECK(!isRecording());
-    packet(ButtonWire::Press,44,12,2,invalid);
+    CHECK(isRecording()); feed(ButtonWire::Command,44,11,2); CHECK(!isRecording());
+    packet(ButtonWire::Command,44,12,2,invalid);
     for(uint8_t i=0;i<3;++i) feedButtonByte(invalid[i],simulatedTime++);
     simulatedTime+=41;
     for(uint8_t i=3;i<8;++i) feedButtonByte(invalid[i],simulatedTime++);
-    feed(ButtonWire::Press,44,12,2); CHECK(!isRecording());
+    feed(ButtonWire::Command,44,12,2); CHECK(!isRecording());
     initializeButtonLink(); feed(ButtonWire::Hello,44,12,0);
-    feed(ButtonWire::Press,44,13,2); CHECK(isRecording());
+    feed(ButtonWire::Command,44,13,2); CHECK(isRecording());
     clearRecording(); initializeButtonLink();
     feed(ButtonWire::Hello,45,0,0);
-    enqueue(ButtonWire::Press,45,1,2); rxError=true; pollButtonLink();
+    enqueue(ButtonWire::Command,45,1,2); rxError=true; pollButtonLink();
     CHECK(!isRecording() && rx.empty());
-    enqueue(ButtonWire::Press,45,1,2); pollButtonLink(); CHECK(!isRecording());
+    enqueue(ButtonWire::Command,45,1,2); pollButtonLink(); CHECK(!isRecording());
     // Real main loop: PC STATUS remains available with Nano frames queued.
-    enqueue(ButtonWire::Hello,45,1,0); enqueue(ButtonWire::Press,45,2,2); enqueue(ButtonWire::Press,45,3,2);
+    enqueue(ButtonWire::Hello,45,1,0); enqueue(ButtonWire::Command,45,2,2); enqueue(ButtonWire::Command,45,3,2);
     Serial.output.clear(); Serial.input="STATUS\n"; simulatedTime+=20; loop();
     CHECK(Serial.input.empty() && Serial.output.find("task=")!=std::string::npos);
     CHECK(Serial.output.find("J=")!=std::string::npos && Serial.baud==115200);
@@ -87,20 +87,20 @@ int main() {
     loop(); CHECK(!isRecording() && rx.empty());
     // Timeout arithmetic across millis wrap.
     initializeButtonLink(); feed(ButtonWire::Hello,46,0,0);
-    packet(ButtonWire::Press,46,1,2,invalid); simulatedTime=UINT32_MAX-3;
+    packet(ButtonWire::Command,46,1,2,invalid); simulatedTime=UINT32_MAX-3;
     for(uint8_t i=0;i<3;++i) feedButtonByte(invalid[i],simulatedTime++);
     simulatedTime+=10;
     for(uint8_t i=3;i<8;++i) feedButtonByte(invalid[i],simulatedTime++);
     CHECK(isRecording());
     // Real Recording (not just ARMING): stop via a second physical-frame B2.
     clearRecording(); initializeButtonLink();
-    feed(ButtonWire::Hello,50,0,0);feed(ButtonWire::Press,50,1,2);
+    feed(ButtonWire::Hello,50,0,0);feed(ButtonWire::Command,50,1,2);
     simulatedTime+=3000;updateRecording(simulatedTime,commandedPose());
     CHECK(recordingStatus().state==RecordState::Recording);
     simulatedTime+=12000;updateRecording(simulatedTime,commandedPose());
-    enqueue(ButtonWire::Hello,50,1,0);enqueue(ButtonWire::Press,50,2,2);pollButtonLink();
+    enqueue(ButtonWire::Hello,50,1,0);enqueue(ButtonWire::Command,50,2,2);pollButtonLink();
     CHECK(!isRecording() && hasRecording() && recordingStatus().duration==12000);
-    feed(ButtonWire::Press,50,2,2);CHECK(hasRecording() && !isRecording());
+    feed(ButtonWire::Command,50,2,2);CHECK(hasRecording() && !isRecording());
     CHECK(servoWrites.empty()); // Protocol tests never command an actual output.
     std::cout<<"PASS Nano protocol + real Uno PC loop: "<<checks<<" checks\n";
 }

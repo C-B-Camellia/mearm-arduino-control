@@ -38,11 +38,11 @@ MotionTask task{};
 static_assert(sizeof(MotionTask)==104,"motion payload grew beyond audited AVR budget");
 #endif
 bool isDrawingKind(TaskKind kind) {
-    return kind==TaskKind::DrawLine || kind==TaskKind::DrawShape || kind==TaskKind::Polyline || kind==TaskKind::Curve;
+    return kind>=TaskKind::DrawLine && kind<=TaskKind::Curve;
 }
 uint8_t drawCount() {
     if(task.status.kind==TaskKind::DrawLine) return 2;
-    if(task.status.kind==TaskKind::DrawShape) return shapeVertexCount(task.shape);
+    if(task.status.kind==TaskKind::DrawShape) return 4; // Only N remains.
     return TEACH_POINT_COUNT;
 }
 bool drawVertex(uint8_t index,TeachPoint& p) {
@@ -51,7 +51,7 @@ bool drawVertex(uint8_t index,TeachPoint& p) {
         p=index==0?TeachPoint{task.cart.start.x,task.cart.start.y}:TeachPoint{task.cart.end.x,task.cart.end.y}; return true;
     }
     if(task.status.kind==TaskKind::DrawShape)
-        return shapeVertex(task.shape,index,{task.cart.start.x,task.cart.start.y},{task.cart.end.x,task.cart.end.y},p);
+        return shapeVertex(ShapeId::N,index,{task.cart.start.x,task.cart.start.y},{task.cart.end.x,task.cart.end.y},p);
     return getTeachPoint(index,p);
 }
 bool curveKnots(uint8_t segment,TeachPoint& a,TeachPoint& b,TeachPoint& c,TeachPoint& d) {
@@ -181,7 +181,7 @@ void finish(bool failed=false) {
     else if(kind==TaskKind::TeachPosition) completeMarking();
     else {
         printText(F("DONE "));
-        printCommandName(commandNames("\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW SHAPE\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
+        printCommandName(commandNames("\0LINE\0RUNLINE\0MOVE\0XYZ\0HOME\0PICK\0PLAY\0DRAW LINE\0DRAW N\0DRAW POLY\0DRAW CURVE\0"),static_cast<uint8_t>(kind));
     }
     syncManualTarget(millis());
 }
@@ -196,7 +196,10 @@ __attribute__((noinline)) void validateOne() {
     if(!task.segmentLoaded) {
         task.validationSubstep=0;
         if(!sampleGoal(task.status.validatedWaypoints+1,task.segmentTarget)) { finish(true); return; }
-        task.validationSubsteps=max(1,static_cast<int>(ceilf(maxDifference(task.segmentStart,task.segmentTarget))));
+        // PICK uses independently taught joint endpoints. Joint boxes and the
+        // shoulder+elbow sum bound are convex; final output checks remain active.
+        task.validationSubsteps=task.status.kind==TaskKind::PickPlace ? 1 :
+            max(1,static_cast<int>(ceilf(maxDifference(task.segmentStart,task.segmentTarget))));
         task.validationSubstep=0; task.segmentLoaded=true;
         if(task.status.kind==TaskKind::Playback && task.status.validatedWaypoints>0) {
             RecordedFrame a,b;
@@ -266,8 +269,10 @@ __attribute__((noinline)) void execute(uint32_t now) {
             uint16_t penDown=hardwareConfig.homeViaCount+4+(drawing && task.recoveryLift);
             uint16_t penUp=task.status.totalWaypoints-hardwareConfig.homeViaCount-1;
             bool stroke=drawing && index>penDown && index<penUp;
-            float speed=task.status.kind==TaskKind::Playback?DEFAULT_MOVE_SPEED:automaticSpeed();
-            if(task.status.kind==TaskKind::Home || task.status.kind==TaskKind::PickPlace || drawing) speed=DEFAULT_MOVE_SPEED;
+            // HOME through CURVE are the contiguous fixed-speed task kinds;
+            // ordinary moves and TeachPosition still use automaticSpeed().
+            const bool fixedSpeed=task.status.kind>=TaskKind::Home && task.status.kind<=TaskKind::Curve;
+            float speed=fixedSpeed?DEFAULT_MOVE_SPEED:automaticSpeed();
             if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
                 speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
             task.duration=stroke?1:WAYPOINT_DELAY_MS;
@@ -276,7 +281,7 @@ __attribute__((noinline)) void execute(uint32_t now) {
             if(!(stroke && (task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve)))
 #endif
                 task.duration=max(task.duration,static_cast<uint32_t>(ceilf(maxDifference(task.segmentStart,task.segmentTarget)*1000.0f/speed)));
-            // Fixed stroke speed; preserve the existing pen-down/up timing.
+            // Fixed stroke speed; pen-up retains its base speed, pen-down is scaled.
             // HOME, air travel and return keep their joint-speed timing.
             if(drawing && index>=penDown && index<=penUp) {
                 // The sampler already knows the Cartesian chord. Reconstructing
@@ -284,7 +289,7 @@ __attribute__((noinline)) void execute(uint32_t now) {
                 // per endpoint and introduces IK round-trip tolerance into timing.
                 const float paperSpeed=stroke
                     ? ((task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve) ? kFivePointDrawSpeedMmS : kDrawSpeedMmS)
-                    : kPenTransitionSpeedMmS;
+                    : (index==penDown?kPenTransitionSpeedMmS*kPenDownSpeedScale:kPenTransitionSpeedMmS);
                 task.duration=max(task.duration,static_cast<uint32_t>(ceilf(task.segmentDistance*1000.0f/paperSpeed)));
             }
         }
@@ -346,28 +351,41 @@ void updateMotion(uint32_t now,bool controlDue) {
     if(task.status.state!=MotionState::Running) return;
     if(task.dwellRemaining) {
         if(controlDue) {
-            uint32_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
+            // Clamp in 32 bits before narrowing; dt is at most 40 ms.
+            uint16_t dt=min(static_cast<uint32_t>(now-task.lastUpdate),MANUAL_MAX_DT_MS); task.lastUpdate=now;
             task.dwellRemaining=dt>=task.dwellRemaining?0:task.dwellRemaining-dt;
         }
         if(task.dwellRemaining) return;
         if(task.status.completedWaypoints==task.status.totalWaypoints) { finish(); return; }
     }
     if(task.endpointQueued && !hasPendingPose()) {
+        const TaskKind kind=task.status.kind;
         ++task.status.completedWaypoints; task.endpointQueued=false; task.segmentLoaded=false;
-        if(isDrawingKind(task.status.kind)) task.elapsed=0;
-        if(task.status.kind==TaskKind::Playback && task.status.completedWaypoints==1) {
+        if(isDrawingKind(kind)) task.elapsed=0;
+        if(kind==TaskKind::Playback && task.status.completedWaypoints==1) {
             task.elapsed=0; task.lastUpdate=now; printLine(F("PLAY START"));
         }
-        if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
+        if(kind==TaskKind::PickPlace && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+1))
             task.dwellRemaining=pickStageDwell(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-2);
+        else if(isDrawingKind(kind)) {
+            // Zero is the acknowledged pen-down endpoint for every DRAW.
+            const int16_t fromStart=static_cast<int16_t>(task.status.completedWaypoints)-hardwareConfig.homeViaCount-4-task.recoveryLift;
+            if(!fromStart) task.dwellRemaining=500;
+            else if(fromStart>0 && kind<=TaskKind::Polyline && task.shape==ShapeId::N) {
+                const int16_t toEnd=static_cast<int16_t>(task.status.totalWaypoints-task.status.completedWaypoints)-hardwareConfig.homeViaCount-2;
+                if(toEnd>=0) {
 #ifdef MEARM_FIVE_FAST
-        // Only the three interior POLY vertices hold; CURVE remains continuous.
-        if(task.status.kind==TaskKind::Polyline && task.status.completedWaypoints>static_cast<uint16_t>(hardwareConfig.homeViaCount+4+task.recoveryLift) &&
-           task.status.completedWaypoints<task.status.totalWaypoints-hardwareConfig.homeViaCount-2)
-            task.dwellRemaining=MEARM_POLY_HOLD_MS;
+                    // Keep the original interior POLY holds and LINE/N end holds.
+                    if(kind!=TaskKind::Polyline || toEnd)
+                        task.dwellRemaining=kind==TaskKind::Polyline?MEARM_POLY_HOLD_MS:1000;
+#else
+                    if(kind!=TaskKind::Polyline) task.dwellRemaining=1000;
 #endif
-        if(task.status.completedWaypoints==task.status.totalWaypoints && !task.dwellRemaining) { finish(); return; }
+                }
+            }
+        }
         if(task.dwellRemaining) { task.lastUpdate=now; return; }
+        if(task.status.completedWaypoints==task.status.totalWaypoints) { finish(); return; }
     }
     if(controlDue) execute(now);
 }
@@ -441,6 +459,7 @@ bool startDrawing(TaskKind kind,ShapeId shape,const TeachPoint& a,const TeachPoi
 }
 bool startDrawLine(const TeachPoint& a,const TeachPoint& b) { return startDrawing(TaskKind::DrawLine,ShapeId::N,a,b); }
 bool startBasicShape(ShapeId shape,const TeachPoint& lo,const TeachPoint& hi) {
+    if(shape!=ShapeId::N) return rejectControl(ControlError::Invalid);
     // Reject thin rectangles instead of reporting a near-line as a 2D shape.
     if(hi.x-lo.x<5.0f || hi.y-lo.y<5.0f) return rejectControl(ControlError::Geometry);
     return startDrawing(TaskKind::DrawShape,shape,lo,hi);

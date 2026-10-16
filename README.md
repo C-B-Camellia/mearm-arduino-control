@@ -1,24 +1,22 @@
-# MeArm Bringup：Fast70 交互补丁（2026-10-15）
+# MeArm 双板业务命令版本（2026-10-16）
 
-本工程保留已录入的 Bringup 标定，完整 D10 目标为 **`uno_nano_five_fast`**。
-当前补丁：TEACH MARKING 自动定位、DRAW 自动准备 J3=85、S=85、带命令上下文的 ACK、短错误码；HELP 已删除，FEED 不恢复。
-本轮只通过软件构建/模拟回归，未烧录、未操作机械臂。软件角度、FK、READY 和 DONE 都不是物理位置反馈。
+完整目标为 `uno_nano_five_fast`。副板长按B4同时切页和切换按键映射，主控统一处理业务命令。固定 `DRAW LINE` / `DRAW N` 替代自定义坐标输入；现有标定、Fast80、POLY500ms、CURVE增益1.20、落笔500ms及其他已验证参数保留。
 
-详细提交、逐项资源数据、日志和实机复测见 [交付报告](docs/Interaction_Patch_2026-10-15.md)。旧 docs 是历史证据；与本页冲突时应核对当前源码，不沿用旧命令说明。
+本轮仅软件构建与模拟测试通过，未烧录。详见 [双板交付报告](docs/Dual_Board_Command_2026-10-16.md)。历史报告不代表当前命令接口。
 
 ## 构建与回归
 
 ```powershell
 pio run -e uno_nano_five_fast
-& ./test/native/run.ps1 -Compiler C:/msys64/ucrt64/bin/g++.exe -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=80'
-& ./test/native/run.ps1 -Compiler C:/msys64/ucrt64/bin/g++.exe -Suite interaction_tests.cpp -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=80'
-& ./test/draw_t3/run.ps1 -Suite interaction_draw_tests.cpp -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=80'
+& ./test/native/run.ps1 -Compiler C:/msys64/ucrt64/bin/g++.exe -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=500'
+& ./test/native/run.ps1 -Compiler C:/msys64/ucrt64/bin/g++.exe -Suite interaction_tests.cpp -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=500'
+& ./test/draw_t3/run.ps1 -Suite interaction_draw_tests.cpp -ExtraFlags '-DMEARM_FIVE_FAST','-DMEARM_POLY_HOLD_MS=500'
 & ./test/nano_link/run.ps1
 ```
 
 `uno` 不含当前 D10 链路，不能代替完整目标容量验收。`uno_nano_link` 不启用五点 Fast 实验策略。Native 的 `test_main.cpp` 是历史旧夹具，当前主回归入口为 `sprint_tests.cpp`。
 
-当前完整目标 Flash **32254/32256 B（剩2 B）**，静态 SRAM **1295/2048 B**。SRAM 的753 B差额还需容纳栈和中断上下文，不等于已测栈安全。不要把 `.pio/synthetic-*` 的合成标定产物用于实机。
+当前完整目标 Flash **31330/32256 B（剩926 B）**，静态 SRAM **1293/2048 B**。SRAM 的755 B差额还需容纳栈和中断上下文，不等于已测栈安全。不要把 `.pio/synthetic-*` 的合成标定产物用于实机。
 
 ## 连接与时间参数（本补丁不修改）
 
@@ -26,19 +24,19 @@ pio run -e uno_nano_five_fast
 |---|---|
 | Nano D1/TX → Uno D10 | 9600 baud 单向按键 UART |
 | Nano GND → Uno GND | 共地 |
-| Uno 5V → Nano 5V | Nano 未连接 USB 时使用既定供电方案 |
+| 两板分别供电 | 不互接5V；副板USB烧录必须断开7.4V外部供电 |
 | Uno USB | PC 115200 baud 命令与反馈 |
 | Uno D9/D8/D7/D6 | J0/J1/J2/J3 Servo |
 | Uno A0/A1/A3/A2 | LX/LY/RY/RX 摇杆；CART 为 X/Y/Z/J3 |
 
-Nano 原有四键与 OLED 固件、接线不变。D10 接收使用 PB2/PCINT0 和 Timer2；Servo 使用 Timer1。主控没有增加 OLED 驱动或返回链路，不向 Nano D0 接线。原有烧录/外部供电互斥、烧录断开板间线等电气约束继续遵守。
+副板四键引脚和OLED驱动、接线不变，本轮更新其业务映射固件。D10 接收使用 PB2/PCINT0 和 Timer2；Servo 使用 Timer1。主控没有增加 OLED 驱动或返回链路，不向 Nano D0 接线。原有烧录/外部供电互斥、烧录断开板间线等电气约束继续遵守。
 
-D10 保持8字节二进制帧：`A5 type epochLo epochHi sequence button CRC8 5A`；Hello=0、Press=1；CRC覆盖前6字节，多项式0x07。保留会话同步、序号、重复过滤、40ms残帧超时和溢出恢复。不是 `B1\n` 文本协议。
+D10保持8字节二进制帧：`A5 type epochLo epochHi sequence command CRC8 5A`；Hello=0，业务Command=2，旧Press=1拒绝。CRC覆盖前6字节、多项式0x07，会话、序号、去重、40ms残帧超时和溢出恢复保留。两板必须配套升级。
 
 - 控制周期20ms；Servo库负责脉冲；RUNLINE最小等待10ms不是PWM周期。
 - 手动 JOINT 25/90°/s，CART 25/100mm/s；H/L只改变手动倍率，范围0.75..1.5，每次0.25。
-- LINE/SHAPE描线35mm/s；五点POLY/CURVE描线70mm/s；落笔/抬笔空间参数25mm/s。数值是规划目标，非实测速度。
-- Fast只对POLY/CURVE的STROKE绕过额外60°/s关节规划；其余阶段照旧。POLY三个中间点保持80ms，CURVE无此停顿。
+- LINE/N/POLY/CURVE描线80mm/s；落笔空间目标37.5mm/s（1.50倍），抬笔25mm/s；仍受原关节限速。数值是规划目标，非实测速度。
+- Fast只对POLY/CURVE的STROKE绕过额外60°/s关节规划；其余阶段照旧。POLY三个中间点保持500ms，CURVE无此停顿。
 - SPEED默认60、范围5..90°/s，作用于原有普通目标移动/TEACH自动定位等；HOME、DRAW及PICK分阶段策略独立，回放也不随H/L或SPEED变化。
 - 原限位、148..250°组合约束、量化输出复核、IK/路径预检不变。软件标定有效位并不证明现场笔尖/工装已经校准。
 
@@ -65,7 +63,7 @@ D10 保持8字节二进制帧：`A5 type epochLo epochHi sequence button CRC8 5A
 | `A` / `B` / `C` | 执行对应的完整八阶段配置，先预检；示教中拒绝 |
 | `REC` / `REC START` / `REC STOP` | 录制切换/开始/结束保存；ARMING中停止为取消 |
 | `PLAY` | 预检、受限返回首帧、按时间轴回放 |
-| `BTN 1`..`BTN 4` | 与实体四键共用业务分发 |
+| `PICK NEXT` | 接受成功后才推进A/B/C轮转；BTN已删除 |
 | `TEACH START` | CART示教设置；不清点集/高度；摇杆J3冻结 |
 | `TEACH DRAWZ` / `TEACH TEACHZ` / `TEACH TRAVELZ` | 捕获当前已接受指令姿态的FK高度，分别为描线/对点/移动高度 |
 | `TEACH MARKING` | 验证高度，等待回中，再保持当前XY自动到teachZ；READY后才可MARK |
@@ -73,9 +71,8 @@ D10 保持8字节二进制帧：`A5 type epochLo epochHi sequence button CRC8 5A
 | `ORDER 1 3 2 5 4` | 必须是全部五点的无重复排列 |
 | `CLEAR` | 清点集，返回设置；保留纸面高度 |
 | `TEACH EXIT` | 退出，保留点/高度；若自动定位正在等待/移动，取消并HOLD |
-| `DRAW LINE x1 y1 x2 y2` | 自动准备夹爪、HOME/移动/落笔/描线/抬笔/返回 |
-| `DRAW SHAPE N x0 y0 x1 y1` | 边界矩形内N；还支持TRIANGLE/Z/V；宽高均需≥5mm |
-| `DRAW SHAPE N` | 用前两个顺序点形成边界矩形，退化仍拒绝 |
+| `DRAW LINE` | 固定(125,30)→(125,100)，仍经过原安全预检 |
+| `DRAW N` | 固定(115,-40)→(115,10)→(155,-40)→(155,10) |
 | `DRAW POLY` / `DRAW CURVE` | 按ORDER经过五点的折线 / 向心Catmull–Rom曲线 |
 | `PICK SET A 1` | 捕获当前已接受指令Pose为A的第1阶段；A/B/C各自独立 |
 | `PICK SHOW A` | mask和各阶段J0 J1 J2 J3、速度、等待ms |
@@ -89,9 +86,9 @@ D10 保持8字节二进制帧：`A5 type epochLo epochHi sequence button CRC8 5A
 
 普通成功变更命令返回 `OK <命令及参数>`，例如 `OK MODE CART`、`OK S`、`OK DRAW POLY`。直接复用原串口缓冲，解析器NUL分隔符还原为空格；多余空白可能保留，角度三元组的逗号会变为空格。上位机应按token解析，不再只匹配精确的 `OK`。
 
-STATUS、IK、IK3查询保留数据输出；LIST/PICK SHOW输出数据后还有上下文OK。实体按钮仍输出 `OK BTN`，PC模拟输出如 `OK BTN 2`，Nano二进制协议不变。
+STATUS、IK、IK3查询保留数据输出；LIST/PICK SHOW输出数据后还有上下文OK。副板业务命令在Uno USB输出 `OK REMOTE` 或错误；这不是发回副板的ACK。旧BTN和带坐标DRAW形式拒绝。
 
-异步任务的 `OK` 只表示接受；之后可能预检失败。成功完成输出 `DONE DRAW POLY` / `DONE DRAW CURVE` / `DONE DRAW LINE` / `DONE DRAW SHAPE` / `DONE HOME` / `DONE PLAY` 等。所有普通关节目标（含S/O/角度三元组）共用 `DONE MOVE`；ABC共用 `DONE PICK`，没有额外保存原始输入。`LINE`仅预检完成为 `DONE LINE`。失败/取消不输出旧任务的DONE。取消DRAW后可能输出 `DONE HOME`。
+异步任务的 `OK` 只表示接受；之后可能预检失败。成功完成输出 `DONE DRAW POLY` / `DONE DRAW CURVE` / `DONE DRAW LINE` / `DONE DRAW N` / `DONE HOME` / `DONE PLAY` 等。所有普通关节目标（含S/O/角度三元组）共用 `DONE MOVE`；ABC共用 `DONE PICK`，没有额外保存原始输入。`LINE`仅预检完成为 `DONE LINE`。失败/取消不输出旧任务的DONE。取消DRAW后可能输出 `DONE HOME`。
 
 TEACH MARKING当前输出顺序：
 
@@ -122,13 +119,13 @@ PICK SAVE完成保留 `PICK SAVED; HELD`；录制保留 `REC ...` 生命周期�
 | E07 | 7 | IK无法给出有效解（也可能涉及标定/模型或安全条件） | 核对坐标、高度及标定，选择有效路径 |
 | E08 | 8 | 点/路径容量上限 | 检查已有点，按需UNDO/CLEAR；不要默默丢点 |
 | E09 | 9 | 无录制、点不足、无有效EEPROM等数据缺失 | 按当前命令补数据；PICK LOAD失败后保持HOLD |
-| E10 | 10 | 图形边界矩形退化（宽或高<5mm） | 指定有效矩形或调整首两点 |
+| E10 | 10 | 图形边界矩形退化（宽或高<5mm） | 当前固定N无需输入矩形；若触发，保留诊断排查源码/参数 |
 | T01 | 11 | MARKING所需高度配置无效；要求drawZ<teachZ<=travelZ且相关标定有效 | 在TEACH START设置中重新捕获三高度，STATUS核对 |
 | T02 | 12 | 不在示教设置中捕获高度，或未开始示教即请求MARKING | TEACH START；等待现有任务完成；已标点时先回设置 |
 | T03 | 13 | 空闲但未进入TeachMark时MARK | TEACH MARKING并等READY；等待/移动期间因占用返回E01 |
 | D01 | 14 | DRAW的HOME/via夹爪不为85，或初始夹爪准备Pose预检失败 | 核对夹爪及完整Pose约束；自动准备不能绕过配置检查 |
 | P01 | 15 | A/B/C对应八阶段mask不完整 | PICK SHOW，补齐缺失阶段并SAVE |
-| P02 | 16 | 已有阶段但采样时速度/夹爪阶段语义等不合法 | 核对PICK SHOW的八阶段速度与开/夹/放角；重新示教对应阶段 |
+| P02 | 16 | 已有阶段但速度等配置不合法 | 核对PICK SHOW各阶段速度与姿态；不存在闭爪时肩肘必须静止的规则 |
 
 STATUS.error=0表示无错误；若内部未知编号被打印则通用兜底E05，不伪造精确原因。E03/E06/E07也可能先于专用码发生；专用码仅用于源码能确定的分支。历史error可在成功查询后仍保留，不能当作当前活动任务必然失败。
 
@@ -136,29 +133,31 @@ STATUS.error=0表示无错误；若内部未知编号被打印则通用兜底E05
 
 三高度均来自**已接受的整数关节指令的FK**，不是摇杆积分目标或传感器实测。进入TEACH START仍遵守原模式切换条件。Setup锁摇杆J3；Mark锁摇杆Z和J3，保持固定teachZ；显式PC J3仍允许安全调试。
 
-MARKING接受后由唯一MotionTask占用运动权。未回中只等待，不累积手动运动、不返回INVALID。回中时取得当前XY，设目标Z=teachZ，走原Cartesian分段、安全预检和输出；预检失败则HOLD，不设READY，保留五点和高度。等待/移动期间TEACH EXIT、B4、CANCEL、HOME会取消请求，之后GO不会复活请求。普通CANCEL保持示教设置；TEACH EXIT/B4同时退出。EXIT取消定位后要先检查状态再GO。HOLD/GO是暂停继续，不是取消。
+MARKING接受后由唯一MotionTask占用运动权。未回中只等待，不累积手动运动、不返回INVALID。回中时取得当前XY，设目标Z=teachZ，走原Cartesian分段、安全预检和输出；预检失败则HOLD，不设READY，保留五点和高度。等待/移动期间TEACH EXIT、CANCEL、HOME会取消请求，之后GO不会复活请求。普通CANCEL保持示教设置；TEACH EXIT同时退出。EXIT取消定位后要先检查状态再GO。HOLD/GO是暂停继续，不是取消。
 
-DRAW在J3不为85时，先规划仅改变J3的非阻塞准备段，再走原绘图阶段；**准备段及整个DRAW一起预检，通过前不会先关爪**。若原来就是85，没有额外准备段。准备段按原60°/s关节策略、20ms输出节拍执行。HOLD/GO保留同一任务；CANCEL/B3沿用原绘图抬笔并受控HOME，恢复路线失败则保持停止。无任何“笔已实际夹牢”的自动判定。HOME/via仍须保持85，ABC独立八阶段角度不被改为85。
+DRAW在J3不为85时，先规划仅改变J3的非阻塞准备段，再走原绘图阶段；**准备段及整个DRAW一起预检，通过前不会先关爪**。若原来就是85，没有额外准备段。准备段按原60°/s关节策略、20ms输出节拍执行。HOLD/GO保留同一任务；CANCEL沿用原绘图抬笔并受控HOME，恢复路线失败则保持停止。无任何“笔已实际夹牢”的自动判定。HOME/via仍须保持85，ABC独立八阶段角度不被改为85。
 
-## 四键状态表
+## 副板五页与按键映射
 
-| 上下文 | B1 | B2 | B3 | B4 |
-|---|---|---|---|---|
-| 普通空闲 | A/B/C接受成功后循环 | 录制切换 | 回放 | HOME |
-| ARMING/录制 | 拒绝 | 取消准备/保存录制 | 拒绝 | 清录制并HOME |
-| TeachSetup | 捕获drawZ | 捕获travelZ | MARKING | 退出 |
-| MARKING等待/自动定位（含暂停） | 拒绝 | 拒绝 | 拒绝 | 取消定位并退出/HOLD |
-| TeachMark空闲 | MARK | POLY | CURVE | UNDO |
-| DRAW含预检、夹爪准备及暂停 | HOLD | GO | 取消、抬笔、HOME | 无动作 |
-| 普通其他运动任务 | 拒绝 | 拒绝 | 拒绝 | HOME（示教上下文另受原互斥限制） |
+| 本地模式 | B1短按 | B2短按 | B3短按 | B4短按 | 其他长按（≥800ms） |
+|---|---|---|---|---|---|
+| NORMAL | PICK NEXT | REC | PLAY | HOME | H1→TEACH START/CAL；H2→BASIC |
+| BASIC | DRAW LINE→DRAWING | DRAW N→DRAWING | 返回NORMAL | HOME | H2→NORMAL |
+| CAL | DRAWZ | TEACHZ | TRAVELZ | TEACH EXIT→NORMAL | H1退出；H2 CLEAR；H3 MARKING→TEACH |
+| TEACH | MARK | POLY→DRAWING | CURVE→DRAWING | UNDO | H1退出；H2 CLEAR→CAL |
+| DRAWING | HOLD | GO | CANCEL | 无动作 | H2仅本地返回原BASIC/TEACH |
 
-TEACHZ用PC `TEACH TEACHZ` 捕获。点集跨TEACH START/EXIT、DRAW保留；CLEAR才清点，断电仍丢失RAM点集和高度。
+所有模式H4同时切换页面和映射：NORMAL→BASIC→CAL→TEACH→DRAWING→NORMAL。进入CAL发送TEACH START，进入TEACH发送TEACH MARKING，DRAWING回NORMAL发送TEACH EXIT；其他H4转换不发送动作。一次长按只触发一次，不同时触发短按；带长按功能的键短按在松开后发送。开机按住须先松开再按。
+
+这是本地选择，不是Uno状态：发送MARKING后必须看PC的TEACH READY再MARK；绘图结束须看DONE，才用DRAWING H2返回。请求被拒或丢帧时，页面仍可能已经改变，不能把页面当成确认。任务运行中切页不绕过Uno BUSY、安全预检或限位。OLED右上L1..L5表示本地模式，!表示发送队列曾满；没有五点计数或成功状态。
+
+点集跨TEACH START/EXIT、DRAW保留；CLEAR才清点，断电丢失RAM点集和高度。
 
 ## 录制与EEPROM
 
 录制仍为80×6 B关键帧（四角度字节+uint16相对ms），约20ms观察已接受指令，固定容量有界重压缩；3秒ARMING不计时，10秒提醒，20秒自动保存，也可B2主动保存。复杂动作允许DEGRADED并报告误差界，不以平均压缩率保证精度。回放先预定位首帧，再按时间轴重建；必要的既有安全时间倍率独立于H/L/SPEED。短录制可显示SHORT，不代表官方时长验收已通过。
 
-PICK阶段1..8分别为APPROACH、SRC、GRIP、LIFT、TRANSFER、DST、RELEASE、RETREAT（数字和名称均接受）。SRC=2、DST=6，不能只录这两点代替安全八阶段。阶段1/2同开爪角，3..6同夹持角，7/8同释放角；夹持必须区别于开和放。捕获重设该阶段速度60和等待100ms，必要时随后重新设置。
+PICK阶段1..8分别为APPROACH、SRC、GRIP、LIFT、TRANSFER、DST、RELEASE、RETREAT（数字和名称均接受）。SRC=2、DST=6，不能只录这两点代替安全八阶段。各阶段四轴可独立示教，不强制闭爪阶段肩肘静止或多阶段夹爪角一致；仍检查完整姿态和运行输出。捕获重设该阶段速度60和等待100ms，必要时随后重新设置。
 
 配置步骤：在安全可达位置用串口/摇杆移动 → `PICK SET A 1`，依次完成八阶段 → `PICK SHOW A`检查mask=255和每个姿态、速度、等待 → `PICK SAVE` → 等`PICK SAVED; HELD` → 安全确认后`GO`。B/C同理。运行时先预检，不具备碰撞传感器或自动推导安全工装路径。
 

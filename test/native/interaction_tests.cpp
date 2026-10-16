@@ -23,7 +23,7 @@ int main(){
  center();finish();CHECK(markingActive() && Serial.output.find("TEACH MOVING")!=std::string::npos && Serial.output.find("TEACH READY")!=std::string::npos);
  Point3D goal=fk(goalPose());CHECK(fabsf(goal.x-start.x)<.05f&&fabsf(goal.y-start.y)<.05f&&fabsf(goal.z-teachSettings().teachZ)<.05f);CHECK(commandedPose().angles[3]==grip);
  send("MARK");CHECK(teachPointCount()==1 && Serial.output.find("OK MARK\r\n")!=std::string::npos);
- for(const char* abort:{"TEACH EXIT","CANCEL","BTN 4"}){
+ for(const char* abort:{"TEACH EXIT","CANCEL"}){
   five();TeachPoint saved;CHECK(getTeachPoint(0,saved));analogValues[3]=619;send("TEACH MARKING");CHECK(isMotionBusy());send(abort);CHECK(!isMotionBusy());center();send("GO");
   size_t writes=servoWrites.size();for(int i=0;i<50;++i)motionTick();CHECK(servoWrites.size()==writes&&!markingActive());TeachPoint retained;CHECK(teachPointCount()==5&&getTeachPoint(0,retained)&&saved.x==retained.x&&saved.y==retained.y);
  }

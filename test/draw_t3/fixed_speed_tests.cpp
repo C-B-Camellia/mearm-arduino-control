@@ -17,7 +17,7 @@ void timing(int kind){
    float deg=maxDifference(task.segmentStart,task.segmentTarget);
    if(!bypass)expected=max(expected,uint32_t(ceilf(deg*1000/DEFAULT_MOVE_SPEED)));
    if(index>=down && index<=up){
-    float speed=stroke?(kind>=2?kFivePointDrawSpeedMmS:kDrawSpeedMmS):25.0f;
+    float speed=stroke?(kind>=2?kFivePointDrawSpeedMmS:kDrawSpeedMmS):(index==down?37.5f:25.0f);
     expected=max(expected,uint32_t(ceilf(task.segmentDistance*1000/speed)));
     if(stroke)++strokeChecks;else ++penChecks;
    }else ++airChecks;

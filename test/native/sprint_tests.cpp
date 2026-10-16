@@ -221,9 +221,9 @@ void recordMovingSession(uint32_t duration) {
 }
 void testRecordingAndButtons() {
     fresh(); send("PLAY"); CHECK(contains("E09"));
-    send("BTN 2"); CHECK(recordingStatus().state==RecordState::Arming);
-    runFor(1000); CHECK(contains("REC ARMING 2")); send("BTN 3"); CHECK(contains("E01"));
-    send("BTN 2"); CHECK(!isRecording() && !hasRecording());
+    send("REC"); CHECK(recordingStatus().state==RecordState::Arming);
+    runFor(1000); CHECK(contains("REC ARMING 2")); send("PLAY"); CHECK(contains("E01"));
+    send("REC"); CHECK(!isRecording() && !hasRecording());
     fresh(); send("REC START"); runFor(3000); runFor(11000); send("REC STOP");
     CHECK(hasRecording() && recordingStatus().duration==11000); // Stationary/short takes are retained.
     CHECK(recordingStatus().count==2 && contains("REC 10s; B2 SAVE"));
@@ -231,16 +231,15 @@ void testRecordingAndButtons() {
     RecordedFrame first,last; CHECK(getRecordedFrame(0,first));
     CHECK(getRecordedFrame(recordingStatus().count-1,last));
     CHECK(first.timeMs==0 && last.timeMs==15000);
-    servoWrites.clear(); send("BTN 3"); CHECK(isMotionBusy());
+    servoWrites.clear(); send("PLAY"); CHECK(isMotionBusy());
     send("HOLD"); size_t count=servoWrites.size(); runFor(500); CHECK(count==servoWrites.size());
     send("GO"); finishTask(); CHECK(commandedPose().angles[Shoulder]==last.angles[Shoulder]); checkWritesSafe();
     fresh(); recordMovingSession(20000); CHECK(hasRecording() && !isRecording());
     CHECK(recordingStatus().duration==RECORD_MAX_MS && contains("REC MAX"));
     fresh(); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('2',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(isRecording()); feedButtonByte('B',simulatedTime); feedButtonByte('9',simulatedTime); feedButtonByte('\n',simulatedTime);
-    CHECK(contains("E05")); CHECK(!buttonLinkConfigured());
-    send("BTN 4"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("E03"));
+    CHECK(!isRecording() && !buttonLinkConfigured()); // Legacy button text no longer has semantics.
+    send("REC"); CHECK(isRecording());
+    send("HOME"); CHECK(!isRecording() && !hasRecording() && isArmHeld() && contains("E03"));
     fresh(); send("REC START"); runFor(3000); runFor(100); send("CANCEL");
     CHECK(!isRecording() && !hasRecording() && isArmHeld());
 }
@@ -318,7 +317,7 @@ void testAdaptiveRecording() {
     RecordedFrame ended; CHECK(getRecordedFrame(recordingStatus().count-1,ended));
     CHECK(ended.timeMs==15007);
     // Preparation time is excluded, including manual adjustment during ARMING.
-    fresh(); send("BTN 2"); analogValues[1]=300; runFor(200); analogValues[1]=519;
+    fresh(); send("REC"); analogValues[1]=300; runFor(200); analogValues[1]=519;
     CHECK(recordingStatus().count==0); runFor(2800); CHECK(recordingStatus().duration==0);
     CHECK(stopRecording(simulatedTime)); RecordedFrame armed;
     CHECK(getRecordedFrame(0,armed)); CHECK(armed.angles[Shoulder]<120 && armed.timeMs==0);
@@ -337,7 +336,7 @@ void testAdaptiveRecording() {
     // B4 aborts both ARMING and recording through the same safe HOME owner.
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
-    send("BTN 2"); runFor(3500); send("BTN 4");
+    send("REC"); runFor(3500); send("HOME");
     CHECK(!isRecording() && !hasRecording() && motionStatus().kind==TaskKind::Home);
     finishTask(); CHECK(!isArmHeld());
     // Delayed scheduler crosses several retained timestamps in one update.
@@ -375,8 +374,8 @@ void testHomeAndPick() {
     CHECK(startHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
     Pose poses[PICK_STAGE_COUNT]; for(uint8_t i=0;i<PICK_STAGE_COUNT;++i) { poses[i]=commandedPose(); poses[i].angles[Shoulder]=110+(i%2)*5; poses[i].angles[Gripper]=i<2 || i>=6?80:30; }
     setSyntheticPickProgram(0,poses); setSyntheticPickProgram(1,poses); setSyntheticPickProgram(2,poses);
-    CHECK(onButtonPressed(1)); CHECK(!onButtonPressed(1)); finishTask();
-    CHECK(onButtonPressed(1)); finishTask(); CHECK(onButtonPressed(1)); finishTask();
+    CHECK(dispatchAction({AppAction::PickNext,0})); CHECK(!dispatchAction({AppAction::PickNext,0})); finishTask();
+    CHECK(dispatchAction({AppAction::PickNext,0})); finishTask(); CHECK(dispatchAction({AppAction::PickNext,0})); finishTask();
     CHECK(commandedPose().angles[Shoulder]==115);
     CHECK(cancelAndReturnHome()); finishTask(); CHECK(commandedPose().angles[Shoulder]==110);
 }
@@ -437,6 +436,42 @@ void testMotionPayloadTransitions() {
     CHECK(!isArmHeld()); CHECK(cancelAndReturnHome()); finishTask();
     CHECK(commandedPose().angles[Shoulder]==120 && !hasPendingPose());
 }
+void testIndependentPickStages() {
+    fresh(); syntheticCalibration(); hardwareConfig.gripValid=true;
+    hardwareConfig.gripOpen=40; hardwareConfig.gripClosed=90;
+    initializeArm(); advance(); advance();
+    hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
+    const Pose poses[8]={
+        {{74,107,94,50}}, {{74,32,133,33}}, {{74,30,135,90}}, {{74,94,94,90}},
+        {{46,94,114,90}}, {{46,52,137,90}}, {{46,52,137,47}}, {{46,109,114,69}}
+    };
+    setSyntheticPickProgram(0,poses); CHECK(pickStageMask(0)==255);
+    for(uint8_t i=0;i<8;++i) {
+        Pose p; uint16_t dwell; CHECK(getPickStage(0,i,p,dwell));
+        for(uint8_t j=0;j<JointCount;++j) CHECK(p.angles[j]==poses[i].angles[j]);
+    }
+    CHECK(startPickPlace(0));
+    const size_t writesBeforeValidation=servoWrites.size();
+    const uint16_t count=motionStatus().totalWaypoints;
+    CHECK(count==8+hardwareConfig.homeViaCount+1);
+    for(uint16_t i=0;i<count;++i) {
+        updateMotion(simulatedTime,false);
+        CHECK(motionStatus().validatedWaypoints==i+1);
+        CHECK(servoWrites.size()==writesBeforeValidation);
+    }
+    CHECK(motionStatus().state==MotionState::Running);
+    finishTask(); CHECK(contains("PATH VALID"));
+    CHECK(!contains("PATH ERR") && !contains("ERR P02"));
+    for(uint8_t j=0;j<JointCount;++j) CHECK(commandedPose().angles[j]==poses[7].angles[j]);
+    for(const auto& w:servoWrites) CHECK(w.angle>=0 && w.angle<=180);
+    // Equal grip angles across the entire program are also legitimate taught targets.
+    Pose equal[8]; for(uint8_t i=0;i<8;++i) { equal[i]=poses[i]; equal[i].angles[Gripper]=50; }
+    setSyntheticPickProgram(1,equal);
+    for(uint8_t i=0;i<8;++i) { Pose p; uint16_t d; CHECK(getPickStage(1,i,p,d)); }
+    // Corrupted/unsafe coordinates still fail the unchanged full motion preflight.
+    EEPROM.bytes[310+1+6+1]=0; Serial.output.clear(); servoWrites.clear();
+    CHECK(startPickPlace(0)); finishTask(); CHECK(contains("PATH ERR") && servoWrites.empty());
+}
 void testRuntimePickPersistence() {
     fresh(); send("PICK LOAD"); CHECK(contains("E09") && isArmHeld()); send("GO");
     send("PICK SET A SRC"); CHECK(contains("E03") && pickStageMask(0)==0);
@@ -462,14 +497,14 @@ void testRuntimePickPersistence() {
     Pose custom; uint16_t dwell;
     CHECK(getPickStage(2,2,custom,dwell) && custom.angles[Gripper]==50);
     poses[4].angles[Gripper]=55; setSyntheticPickProgram(2,poses);
-    CHECK(!getPickStage(2,4,custom,dwell)); // Do not open/change grip during carry.
+    CHECK(getPickStage(2,4,custom,dwell) && custom.angles[Gripper]==55); // Independent taught grip during carry.
     send("PICK CLEAR C");
     for(const char* bad:{"PICK SET D SRC","PICK SET A 9","PICK SPEED A 3 4","PICK SPEED A 3 90.1","PICK WAIT A 3 2551","PICK WAIT A 3 -1","PICK WAIT A 3 23","PICK SET A SRC extra"}) {
         Serial.output.clear(); send(bad); CHECK(contains("E05"));
     }
     // Saving freezes manual/business events but continues the PC loop.
     servoWrites.clear(); send("PICK SAVE"); CHECK(isPickSaving() && isArmHeld());
-    send("GO"); send("BTN 2"); CHECK(isArmHeld() && !isRecording());
+    send("GO"); send("REC"); CHECK(isArmHeld() && !isRecording());
     CHECK(!startRecording(simulatedTime)); CHECK(!beginTeach());
     for(int i=0;i<200 && isPickSaving();++i) advance();
     CHECK(!isPickSaving() && contains("PICK SAVED; HELD") && servoWrites.empty());
@@ -547,6 +582,8 @@ void testCurveIndependentReference() {
         TeachPoint a1=blendPoint(a,b,(t-t0)/(t1-t0)),a2=blendPoint(b,c,(t-t1)/(t2-t1)),a3=blendPoint(c,d,(t-t2)/(t3-t2));
         TeachPoint b1=blendPoint(a1,a2,(t-t0)/(t2-t0)),b2=blendPoint(a2,a3,(t-t1)/(t3-t1));
         TeachPoint reference=blendPoint(b1,b2,(t-t1)/(t2-t1)),actual;
+        TeachPoint position=blendPoint(b,c,3*u*u-2*u*u*u);
+        reference={position.x+1.20f*(reference.x-position.x),position.y+1.20f*(reference.y-position.y)};
         CHECK(centripetalSample(a,b,c,d,u,actual)); CHECK(pointDistance(reference,actual)<0.0001f);
     }
     TeachPoint expected,scratch,again;
@@ -559,19 +596,19 @@ void prepareTeachFive() {
     fresh(); syntheticCalibration(); initializeArm(); advance(); advance();
     Pose grip=commandedPose(); grip.angles[Gripper]=85; CHECK(requestPose(grip)); CHECK(applyPendingPose());
     hardwareConfig.homeValid=true; hardwareConfig.home=commandedPose();
-    send("TEACH START"); CHECK(teachingActive()); send("BTN 1"); CHECK(teachSettings().drawValid);
+    send("TEACH START"); CHECK(teachingActive()); send("TEACH DRAWZ"); CHECK(teachSettings().drawValid);
     Pose p=commandedPose(); p.angles[Shoulder]=123; CHECK(requestPose(p)); CHECK(applyPendingPose());
-    send("BTN 2"); CHECK(drawSettingsValid()); send("BTN 3"); CHECK(!markingActive() && contains("T01"));
-    send("TEACH TEACHZ"); send("BTN 3"); CHECK(!markingActive()); finishTask(); CHECK(markingActive());
+    send("TEACH TRAVELZ"); CHECK(drawSettingsValid()); send("TEACH MARKING"); CHECK(!markingActive() && contains("T01"));
+    send("TEACH TEACHZ"); send("TEACH MARKING"); CHECK(!markingActive()); finishTask(); CHECK(markingActive());
     for(uint8_t i=0;i<5;++i) {
         p=commandedPose(); p.angles[Base]=80+5*i;
-        CHECK(requestPose(p)); CHECK(applyPendingPose()); send("BTN 1"); CHECK(teachPointCount()==i+1);
+        CHECK(requestPose(p)); CHECK(applyPendingPose()); send("MARK"); CHECK(teachPointCount()==i+1);
     }
     servoWrites.clear(); Serial.output.clear();
 }
 void testTeachAndDraw() {
     fresh(); send("TEACH START"); CHECK(contains("E03"));
-    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("BTN 4");
+    prepareTeachFive(); send("ORDER 5 4 3 2 1"); send("UNDO");
     CHECK(teachPointCount()==4); TeachPoint undone;
     CHECK(getTeachPoint(0,undone)); Point3D surviving=solveFK3D(95,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle);
     CHECK(fabs(undone.x-surviving.x)<0.001f);
@@ -583,10 +620,10 @@ void testTeachAndDraw() {
     send("ORDER 1 1 3 4 5"); CHECK(contains("E05"));
     send("ORDER 5 4 3 2 1"); TeachPoint ordered; CHECK(getTeachPoint(0,ordered));
     Point3D expected=solveFK3D(100,joints[Shoulder].commandedAngle,joints[Elbow].commandedAngle); CHECK(fabs(ordered.x-expected.x)<0.001f);
-    send("ORDER 1 2 3 4 5"); send("BTN 2"); CHECK(drawingTaskActive());
-    send("MARK"); CHECK(contains("E01")); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+    send("ORDER 1 2 3 4 5"); send("DRAW POLY"); CHECK(drawingTaskActive());
+    send("MARK"); CHECK(contains("E01")); send("HOLD"); CHECK(motionStatus().state==MotionState::Paused);
     size_t count=servoWrites.size(); runFor(2000); CHECK(count==servoWrites.size());
-    send("BTN 2"); finishTask(); CHECK(commandedPose().angles[Base]==hardwareConfig.home.angles[Base]);
+    send("GO"); finishTask(); CHECK(commandedPose().angles[Base]==hardwareConfig.home.angles[Base]);
     CHECK(commandedPose().angles[Shoulder]==hardwareConfig.home.angles[Shoulder]);
     CHECK(!isArmHeld() && servoWrites.size()%4==0);
     for(uint8_t point=0;point<5;++point) {
@@ -601,15 +638,16 @@ void testTeachAndDraw() {
     send("DRAW CURVE"); CHECK(drawingTaskActive()); finishTask(); CHECK(!isArmHeld());
     send("DRAW POLY"); CHECK(drawingTaskActive());
     for(int i=0;i<1000 && motionStatus().state==MotionState::Validating;++i) loop();
-    CHECK(motionStatus().state==MotionState::Running); runFor(200); send("BTN 1"); send("BTN 3");
+    CHECK(motionStatus().state==MotionState::Running); runFor(200); send("HOLD"); send("CANCEL");
     CHECK(isMotionBusy() && motionStatus().kind==TaskKind::Home); finishTask();
     CHECK(commandedPose().angles[Shoulder]==hardwareConfig.home.angles[Shoulder]);
     send("CLEAR"); CHECK(teachPointCount()==0 && currentWorkflow()==Workflow::TeachSetup);
     send("TEACH EXIT"); CHECK(!teachingActive());
     CHECK(startDrawLine({86,-5},{88,5})); finishTask(); CHECK(!isArmHeld());
-    for(ShapeId shape:{ShapeId::N,ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
-        CHECK(!startBasicShape(shape,{86,-5},{88,5})); CHECK(lastControlError()==ControlError::Geometry);
-        CHECK(startBasicShape(shape,{86,-5},{91,5})); finishTask(); CHECK(!isArmHeld());
+    CHECK(!startBasicShape(ShapeId::N,{86,-5},{88,5})); CHECK(lastControlError()==ControlError::Geometry);
+    CHECK(startBasicShape(ShapeId::N,{86,-5},{91,5})); finishTask(); CHECK(!isArmHeld());
+    for(ShapeId shape:{ShapeId::Triangle,ShapeId::Z,ShapeId::V}) {
+        CHECK(!startBasicShape(shape,{86,-5},{91,5}) && lastControlError()==ControlError::Invalid);
     }
 }
 void testFailureAndLatency() {
@@ -675,10 +713,10 @@ void testIntegrationContracts() {
         servoWrites.clear(); send(draw); CHECK(drawingTaskActive());
         while(motionStatus().state==MotionState::Validating) advance();
         CHECK(motionStatus().state==MotionState::Running);
-        runFor(200); send("BTN 1"); CHECK(motionStatus().state==MotionState::Paused);
+        runFor(200); send("HOLD"); CHECK(motionStatus().state==MotionState::Paused);
         size_t heldWrites=servoWrites.size(); runFor(1200); CHECK(servoWrites.size()==heldWrites);
         send("REC START"); send("A"); send("ORDER 1 2 3 4 5"); CHECK(contains("E01") && !isRecording());
-        send("BTN 2"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
+        send("GO"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
         for(uint8_t i=0;i<5;++i) {
             TeachPoint p; CHECK(getTeachPoint(i,p)); CHECK(p.x==saved[permutation[i]].x);
             float nearest=10000;
@@ -691,11 +729,11 @@ void testIntegrationContracts() {
         }
     }
     send("DRAW POLY"); while(motionStatus().state==MotionState::Validating) advance();
-    runFor(200); send("BTN 3"); CHECK(motionStatus().kind==TaskKind::Home);
+    runFor(200); send("CANCEL"); CHECK(motionStatus().kind==TaskKind::Home);
     uint16_t recoveryWaypoints=motionStatus().totalWaypoints;
     send("HOME"); CHECK(motionStatus().totalWaypoints==recoveryWaypoints); // Repeated request cannot drop lift.
     finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
-    send("DRAW LINE 1000 1000 2000 2000"); finishTask();
+    CHECK(startDrawLine({1000,1000},{2000,2000})); finishTask();
     CHECK(isArmHeld() && teachPointCount()==5); send("GO"); send("DRAW CURVE"); finishTask(); CHECK(!isArmHeld());
     send("TEACH EXIT"); CHECK(!teachingActive() && teachPointCount()==5);
     send("DRAW POLY"); finishTask(); CHECK(!isArmHeld() && teachPointCount()==5);
@@ -719,6 +757,6 @@ int main() {
     for(uint8_t i=0;i<JointCount;++i) original[i]=joints[i];
     testSafety(); testMath(); testLine(); testParser(); testHoldAndJoystick(); test3DAndManual(); testIndependentSpeedAndClock();
     testRecordingAndButtons(); testAdaptiveRecording(); testRecordingInputAndErrors(); testHomeAndPick(); testPackedPickCommands(); testMotionPayloadTransitions(); testManualFrameOwnership();
-    testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testIntegrationContracts(); testDecimalDiagnostics();
+    testIndependentPickStages(); testRuntimePickPersistence(); testCurveSampler(); testCurveIndependentReference(); testTeachAndDraw(); testFailureAndLatency(); testFrozenTaskSpeeds(); testIntegrationContracts(); testDecimalDiagnostics();
     std::cout << "PASS: " << assertions << " checks\n";
 }

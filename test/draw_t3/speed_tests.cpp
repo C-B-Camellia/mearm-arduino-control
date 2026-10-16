@@ -51,7 +51,7 @@ void prepareLine(float feed) {
 void prepareFive(float feed,bool curve) {
     reset(); setCommand(lowerPose(116)); CHECK(captureTeachHeight(true));
     setCommand(lowerPose(118)); CHECK(captureTeachAlignment()); CHECK(beginMarking()); while(isMotionBusy()){simulatedTime+=20;updateMotion(simulatedTime,true);CHECK(applyPendingPose());updateMotion(simulatedTime,false);} CHECK(markingActive());
-    for(int i=0;i<5;++i) { Pose p=commandedPose(); p.angles[Base]=80+i*5; setCommand(p); CHECK(onButtonPressed(1)); }
+    for(int i=0;i<5;++i) { Pose p=commandedPose(); p.angles[Base]=80+i*5; setCommand(p); CHECK(dispatchAction({AppAction::Mark,0})); }
     CHECK(feed==kFivePointDrawSpeedMmS); CHECK(curve?startCurve():startPolyline());
 }
 void preflight() {

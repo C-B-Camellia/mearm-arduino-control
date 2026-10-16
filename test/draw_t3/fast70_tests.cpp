@@ -26,10 +26,10 @@ void measure70(int kind){
   updateMotion(simulatedTime,false);uint16_t after=task.status.completedWaypoints;
   if(before<down && after>=down)strokeStart=simulatedTime;
   if(before<up-1 && after>=up-1)strokeEnd=simulatedTime;
-  if(!oldDwell && task.dwellRemaining){++holds;holdStart=simulatedTime;CHECK(kind==2 && task.dwellRemaining==80);}
-  if(oldDwell && !task.dwellRemaining){CHECK(simulatedTime-holdStart==80);std::cout<<"HOLD "<<kind<<" ms="<<simulatedTime-holdStart<<'\n';}
+  if(!oldDwell && task.dwellRemaining){++holds;holdStart=simulatedTime;CHECK(task.dwellRemaining==(holds==1?500:kind==2?MEARM_POLY_HOLD_MS:1000));}
+  if(oldDwell && !task.dwellRemaining){CHECK(simulatedTime-holdStart==(holds==1?500:kind==2?MEARM_POLY_HOLD_MS:1000));std::cout<<"HOLD "<<kind<<" ms="<<simulatedTime-holdStart<<'\n';}
  }
- CHECK(!isMotionBusy()&&!isArmHeld());CHECK(holds==(kind==2?3:0));if(kind>=2)CHECK(seen==31);
+ CHECK(!isMotionBusy()&&!isArmHeld());CHECK(holds==(kind==0?2:kind==1?4:kind==2?4:1));if(kind>=2)CHECK(seen==31);
  std::cout<<"METRIC kind="<<kind<<" total="<<simulatedTime-start<<" stroke="<<strokeEnd-strokeStart<<" frames="<<frames<<" maxDelta="<<maximum<<" strokeMaxDelta="<<strokeMaximum<<" holds="<<holds<<" knots="<<seen<<'\n';
 }
 void interruption(int kind,bool cancel){
@@ -39,8 +39,8 @@ void interruption(int kind,bool cancel){
   bool ready=task.status.completedWaypoints>6;
   if(kind==2 && !cancel)ready=task.dwellRemaining>0;
   if(!done&&ready){
-   CHECK(onButtonPressed(1));frozen=servoWrites.size();simulatedTime+=1000;updateMotion(simulatedTime,true);CHECK(applyPendingPose());CHECK(servoWrites.size()==frozen);
-   if(cancel)CHECK(onButtonPressed(3));else CHECK(onButtonPressed(2));done=true;
+   CHECK(dispatchAction({AppAction::Hold,0}));frozen=servoWrites.size();simulatedTime+=1000;updateMotion(simulatedTime,true);CHECK(applyPendingPose());CHECK(servoWrites.size()==frozen);
+   if(cancel)CHECK(dispatchAction({AppAction::Cancel,0}));else CHECK(dispatchAction({AppAction::Go,0}));done=true;
   }
  }
  CHECK(done&&!isMotionBusy()&&!isArmHeld());CHECK(maxDifference(commandedPose(),hardwareConfig.home)==0);

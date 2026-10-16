@@ -2,7 +2,8 @@ param(
     [string] $Compiler = 'g++',
     [string] $LegacySource = '',
     [string] $Suite = 'sprint_tests.cpp',
-    [string[]] $ExtraFlags = @()
+    [string[]] $ExtraFlags = @(),
+    [string[]] $TestArguments = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,5 +29,5 @@ $compilerPath = (Get-Command $Compiler -ErrorAction Stop).Source
 $env:PATH = (Split-Path $compilerPath) + ';' + $env:PATH
 & $compilerPath @arguments
 if ($LASTEXITCODE -ne 0) { throw 'Native test compilation failed' }
-& $executable
+& $executable @TestArguments
 if ($LASTEXITCODE -ne 0) { throw 'Native tests failed' }

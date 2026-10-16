@@ -125,10 +125,10 @@ uint8_t pickStageSpeed(uint8_t object,uint8_t stage) { return readByte(address(o
 uint16_t pickStageDwell(uint8_t object,uint8_t stage) { return static_cast<uint16_t>(readByte(address(object,stage)+5))*10; }
 bool getPickStage(uint8_t object,uint8_t stage,Pose& pose,uint16_t& dwell) {
     if(stage>=PICK_STAGE_COUNT || !pickCalibrationValid(object)) return false;
-    uint8_t open=readByte(address(object,0)+3),closed=readByte(address(object,2)+3),release=readByte(address(object,6)+3);
     uint8_t grip=readByte(address(object,stage)+3);
     uint8_t speed=pickStageSpeed(object,stage);
-    if(speed<5 || speed>90 || closed==open || release==closed || grip!=(stage<2?open:stage<6?closed:release)) return false;
+    // Every taught stage owns all four axes; path/output validation stays in motion.
+    if(speed<5 || speed>90) return false;
     for(uint8_t i=0;i<Gripper;++i) pose.angles[i]=readByte(address(object,stage)+i);
     pose.angles[Gripper]=grip;
     dwell=pickStageDwell(object,stage); return true;
