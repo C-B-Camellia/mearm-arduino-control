@@ -143,9 +143,9 @@ void verticesAndCurve() {
 int main() {
     measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
 #ifdef MEARM_AUTO_STROKE_UNLIMITED
-    CHECK(DEFAULT_MOVE_SPEED==120.0f); CHECK(MAX_MOVE_SPEED==120.0f);
-    CHECK(kDrawSpeedMmS==120.0f); CHECK(kFivePointDrawSpeedMmS==120.0f);
-    CHECK(kPenTransitionSpeedMmS==120.0f); CHECK(kPenDownSpeedScale==1.0f);
+    CHECK(DEFAULT_MOVE_SPEED==MEARM_DEFAULT_MOVE_SPEED); CHECK(MAX_MOVE_SPEED==MEARM_MAX_MOVE_SPEED);
+    CHECK(kDrawSpeedMmS==MEARM_DRAW_SPEED_MM_S); CHECK(kFivePointDrawSpeedMmS==MEARM_FIVE_POINT_SPEED_MM_S);
+    CHECK(kPenTransitionSpeedMmS==MEARM_PEN_TRANSITION_SPEED_MM_S); CHECK(kPenDownSpeedScale==MEARM_PEN_DOWN_SPEED_SCALE);
 #endif
     speedAndTravel(); verticesAndCurve();
     std::cout<<"PASS DRAW speed: "<<assertions<<" checks\n";
