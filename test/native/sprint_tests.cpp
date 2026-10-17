@@ -192,8 +192,8 @@ void test3DAndManual() {
     CHECK(setControlMode(ControlMode::Joint));
     fresh(); analogValues[1]=300; runFor(500);
     CHECK(joints[Shoulder].commandedAngle>=107 && joints[Shoulder].commandedAngle<=109);
-    CHECK(automaticSpeed()==60 && manualSpeedScale()==1);
-    send("H"); CHECK(manualSpeedScale()==1.25f && automaticSpeed()==60);
+    CHECK(automaticSpeed()==DEFAULT_MOVE_SPEED && manualSpeedScale()==1);
+    send("H"); CHECK(manualSpeedScale()==1.25f && automaticSpeed()==DEFAULT_MOVE_SPEED);
     send("H"); send("H"); CHECK(manualSpeedScale()==1.5f);
     for(int i=0;i<10;++i) send("L");
     CHECK(manualSpeedScale()==0.75f);
@@ -755,7 +755,8 @@ void testDecimalDiagnostics() {
     Serial.output.clear(); printDecimal(std::numeric_limits<float>::quiet_NaN()); CHECK(Serial.output=="nan");
     Serial.output.clear(); printDecimal(std::numeric_limits<float>::infinity()); CHECK(Serial.output=="inf");
     Serial.output.clear(); printDecimal(1e30f); CHECK(Serial.output=="ovf" && servoWrites.empty());
-    send("STATUS"); CHECK(contains("manualScale=1.00") && contains("autoSpeed=60.0"));
+    const std::string expectedSpeed = "autoSpeed=" + std::to_string(static_cast<int>(DEFAULT_MOVE_SPEED)) + ".0";
+    send("STATUS"); CHECK(contains("manualScale=1.00") && Serial.output.find(expectedSpeed)!=std::string::npos);
 }
 }
 int main() {
