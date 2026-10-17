@@ -74,19 +74,23 @@ void checkWritesSafe() {
 void testSafety() {
     fresh();
     Pose before=commandedPose(), candidate=before, output{};
-    candidate.angles[Shoulder]=20.9f; candidate.angles[Elbow]=127.1f;
+    candidate.angles[Shoulder]=20.9f; candidate.angles[Elbow]=J1_J2_MIN_SUM-candidate.angles[Shoulder];
     CHECK(isSafePose(candidate));
     CHECK(prepareOutputPose(candidate,output)); CHECK(isSafePose(output));
-    CHECK(output.angles[Shoulder]+output.angles[Elbow]==148);
+    CHECK(output.angles[Shoulder]+output.angles[Elbow]==J1_J2_MIN_SUM);
     CHECK(servoWrites.empty() && !hasPendingPose());
     CHECK(commandedPose().angles[Shoulder]==before.angles[Shoulder]);
-    candidate.angles[Shoulder]=20; candidate.angles[Elbow]=128;
+    candidate.angles[Shoulder]=20; candidate.angles[Elbow]=J1_J2_MIN_SUM-20;
     CHECK(prepareOutputPose(candidate,output)); CHECK(requestPose(candidate)); CHECK(applyPendingPose()); checkWritesSafe();
     candidate=commandedPose(); candidate.angles[Base]=91; CHECK(!requestPose(candidate));
     candidate=commandedPose(); candidate.angles[Shoulder]=std::numeric_limits<float>::quiet_NaN();
     CHECK(!requestPose(candidate));
     CHECK(!isSafePlanarPose(19.9f,130)); CHECK(!isSafePlanarPose(125.1f,95));
     CHECK(!isSafePlanarPose(120,39.9f)); CHECK(!isSafePlanarPose(120,130.1f));
+    CHECK(isSafePlanarPose(20,J1_J2_MIN_SUM-20));
+    CHECK(!isSafePlanarPose(20,J1_J2_MIN_SUM-20-.1f));
+    CHECK(isSafePlanarPose(125,J1_J2_MAX_SUM-125));
+    CHECK(!isSafePlanarPose(125,J1_J2_MAX_SUM-125+.1f));
     fresh(); candidate=commandedPose(); candidate.angles[Shoulder]=119.9f;
     CHECK(requestPose(candidate)); advance(); CHECK(commandedPose().angles[Shoulder]==119);
 }
@@ -543,7 +547,8 @@ void testRuntimePickPersistence() {
     send("PICK CLEAR A"); CHECK(pickStageMask(0)==255 && lastControlError()==ControlError::Busy);
     finishTask(); CHECK(!isArmHeld());
     // All phases preflight before first movement, even corrupt runtime edits.
-    EEPROM.bytes[310+1+7*6+1]=20; EEPROM.bytes[310+1+7*6+2]=127;
+    EEPROM.bytes[310+1+7*6+1]=20;
+    EEPROM.bytes[310+1+7*6+2]=static_cast<uint8_t>(J1_J2_MIN_SUM-21);
     servoWrites.clear(); CHECK(startPickPlace(0)); finishTask();
     CHECK(isArmHeld() && servoWrites.empty() && lastControlError()==ControlError::Unsafe);
     clearSyntheticPickPrograms(); initializePickConfiguration();

@@ -101,7 +101,7 @@ RunResult run(bool pause=false,uint32_t gap=20) {
         CHECK(after>=before); CHECK(after-before<=16);
     }
     CHECK(!isMotionBusy()); CHECK(!isArmHeld()); CHECK(checkpoint);
-    CHECK(strokeEnd>strokeStart); if(pause) CHECK(didPause);
+    CHECK(static_cast<uint32_t>(strokeEnd-strokeStart)>0); if(pause) CHECK(didPause);
     return {simulatedTime-start-pausedMs,strokeEnd-strokeStart-pausedMs,static_cast<uint16_t>(count-6),frames};
 }
 void speedAndTravel() {

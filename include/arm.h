@@ -27,8 +27,14 @@ struct Pose {
     float angles[JointCount];
 };
 
-constexpr float J1_J2_MIN_SUM = 148.0f;
-constexpr float J1_J2_MAX_SUM = 250.0f; // 临时上界，非碰撞实测值
+#ifndef MEARM_J1_J2_MIN_SUM
+#define MEARM_J1_J2_MIN_SUM 148.0f
+#endif
+#ifndef MEARM_J1_J2_MAX_SUM
+#define MEARM_J1_J2_MAX_SUM 250.0f
+#endif
+constexpr float J1_J2_MIN_SUM = MEARM_J1_J2_MIN_SUM;
+constexpr float J1_J2_MAX_SUM = MEARM_J1_J2_MAX_SUM; // 临时上界，非碰撞实测值
 
 extern JointControl joints[JointCount];
 
