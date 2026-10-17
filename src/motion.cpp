@@ -276,7 +276,11 @@ __attribute__((noinline)) void execute(uint32_t now) {
             if(task.status.kind==TaskKind::PickPlace && task.status.completedWaypoints>hardwareConfig.homeViaCount)
                 speed=pickStageSpeed(task.objectIndex,task.status.completedWaypoints-hardwareConfig.homeViaCount-1);
             task.duration=stroke?1:WAYPOINT_DELAY_MS;
-#ifdef MEARM_FIVE_FAST
+#if defined(MEARM_AUTO_STROKE_UNLIMITED)
+            // Test build: drawing STROKE follows Cartesian timing only. Position
+            // limits, IK/path preflight, and final quantized output checks remain.
+            if(!stroke)
+#elif defined(MEARM_FIVE_FAST)
             // Experimental only: preserve every position/IK/output check.
             if(!(stroke && (task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve)))
 #endif

@@ -72,7 +72,10 @@ RunResult run(bool pause=false,uint32_t gap=20) {
         if(hasPendingPose()) {
             Pose goal=goalPose(); float movement=maxDifference(prior,goal);
             bool fastStroke=false;
-#ifdef MEARM_FIVE_FAST
+#ifdef MEARM_AUTO_STROKE_UNLIMITED
+            uint16_t penDown=hardwareConfig.homeViaCount+4+(task.recoveryLift?1:0);
+            fastStroke=isDrawingKind(task.status.kind) && before>=penDown && before<penUp-1;
+#elif defined(MEARM_FIVE_FAST)
             fastStroke=(task.status.kind==TaskKind::Polyline || task.status.kind==TaskKind::Curve) && before>=4 && before<penUp-1;
 #endif
             if(!fastStroke) CHECK(movement<=DEFAULT_MOVE_SPEED*min(interval,MANUAL_MAX_DT_MS)*.001f+.001f);
@@ -139,6 +142,11 @@ void verticesAndCurve() {
 }
 int main() {
     measuredConfig=hardwareConfig; for(int i=0;i<4;++i) measuredJoints[i]=joints[i];
+#ifdef MEARM_AUTO_STROKE_UNLIMITED
+    CHECK(DEFAULT_MOVE_SPEED==120.0f); CHECK(MAX_MOVE_SPEED==120.0f);
+    CHECK(kDrawSpeedMmS==120.0f); CHECK(kFivePointDrawSpeedMmS==120.0f);
+    CHECK(kPenTransitionSpeedMmS==120.0f); CHECK(kPenDownSpeedScale==1.0f);
+#endif
     speedAndTravel(); verticesAndCurve();
     std::cout<<"PASS DRAW speed: "<<assertions<<" checks\n";
     return 0;

@@ -17,7 +17,13 @@ static_assert(kDrawSpeedMmS > 0.0f, "Drawing speed must be positive");
 constexpr float kFivePointDrawSpeedMmS = MEARM_FIVE_POINT_SPEED_MM_S;
 static_assert(kFivePointDrawSpeedMmS > 0.0f, "Five-point speed must be positive");
 // Base transition speed; only pen-down applies the local scale below.
-constexpr float kPenTransitionSpeedMmS = 25.0f;
-constexpr float kPenDownSpeedScale = 1.50f;
+#ifndef MEARM_PEN_TRANSITION_SPEED_MM_S
+#define MEARM_PEN_TRANSITION_SPEED_MM_S 25.0f
+#endif
+#ifndef MEARM_PEN_DOWN_SPEED_SCALE
+#define MEARM_PEN_DOWN_SPEED_SCALE 1.50f
+#endif
+constexpr float kPenTransitionSpeedMmS = MEARM_PEN_TRANSITION_SPEED_MM_S;
+constexpr float kPenDownSpeedScale = MEARM_PEN_DOWN_SPEED_SCALE;
 bool setAutomaticSpeed(float speed);
 void resetControlSettings();

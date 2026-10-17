@@ -21,6 +21,12 @@ constexpr float MANUAL_CART_SLOW = 25.0f;
 constexpr float MANUAL_CART_FAST = 100.0f;
 constexpr uint32_t MANUAL_MAX_DT_MS = 40;
 // Automatic task speed is independent of the joystick multiplier.
-constexpr float DEFAULT_MOVE_SPEED = 60.0f;
+#ifndef MEARM_DEFAULT_MOVE_SPEED
+#define MEARM_DEFAULT_MOVE_SPEED 60.0f
+#endif
+#ifndef MEARM_MAX_MOVE_SPEED
+#define MEARM_MAX_MOVE_SPEED 90.0f
+#endif
+constexpr float DEFAULT_MOVE_SPEED = MEARM_DEFAULT_MOVE_SPEED;
 constexpr float MIN_MOVE_SPEED = 5.0f;
-constexpr float MAX_MOVE_SPEED = 90.0f;
+constexpr float MAX_MOVE_SPEED = MEARM_MAX_MOVE_SPEED;
